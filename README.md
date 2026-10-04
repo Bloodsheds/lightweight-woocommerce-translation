@@ -1,0 +1,1 @@
+# lightweight-woocommerce-translation
