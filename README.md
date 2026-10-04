@@ -1,6 +1,6 @@
 # lightweight-woocommerce-translation
 
-= Lightweight Translation for WooCommerce =
+= Free Open-source Lightweight Translation for WooCommerce =
 
 This MVP keeps one WordPress object per product, page, post and term. Translations live in the `wp_light_translations` table and are selected by a language URL prefix.
 
