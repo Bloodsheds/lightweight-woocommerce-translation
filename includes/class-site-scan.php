@@ -283,7 +283,12 @@ class LT_Site_Scan {
     while (frames.length <= n) { var copy = frame.cloneNode(false); copy.removeAttribute('id'); frame.parentNode.appendChild(copy); frames.push(copy); }
     return frames[n];
   }
-  async function read(view, url) { return ltScan.collect(await ltScan.load(view, url, WAIT, QUIET)); }
+  async function read(view, url) {
+    var doc;
+    try { doc = await ltScan.load(view, url, WAIT, QUIET); }
+    catch (e) { doc = await ltScan.load(view, url, WAIT, QUIET); } // a slow server under load: one more try
+    return ltScan.collect(doc);
+  }
   function save(data) { saving = saving.then(function () { return post('save', data); }); return saving; }
   async function scan(item, view) {
     var found = {}, original = null;
