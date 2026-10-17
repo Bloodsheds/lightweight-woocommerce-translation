@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Lightweight Translation</title>
+  <desc id="desc">A globe and speech mark representing lightweight website translation.</desc>
+  <defs>
+    <linearGradient id="bg" x1="40" y1="32" x2="472" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5268f5"/>
+      <stop offset="1" stop-color="#1839c9"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bg)"/>
+  <circle cx="252" cy="244" r="142" fill="none" stroke="#fff" stroke-width="22"/>
+  <path d="M110 244h284M252 102c42 38 64 86 64 142s-22 104-64 142c-42-38-64-86-64-142s22-104 64-142Z" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="18"/>
+  <path d="M136 172c35 23 74 35 116 35s81-12 116-35M136 316c35-23 74-35 116-35s81 12 116 35" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="16" opacity=".8"/>
+  <path d="M347 356h72a45 45 0 0 1 45 45v9a45 45 0 0 1-45 45h-25l-30 28v-30a45 45 0 0 1-17-35v-17" fill="#9ff3df" stroke="#1839c9" stroke-linecap="round" stroke-linejoin="round" stroke-width="14"/>
+  <path d="M369 405h49M369 429h32" fill="none" stroke="#1839c9" stroke-linecap="round" stroke-width="10"/>
+</svg>
