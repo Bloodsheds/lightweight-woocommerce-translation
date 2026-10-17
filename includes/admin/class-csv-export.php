@@ -71,17 +71,7 @@ class LT_CSV_Export {
 		submit_button( __( 'Save', 'lightweight-translation' ), 'secondary small', 'submit', false );
 		echo '</form>';
 		echo '<textarea readonly rows="12" class="large-text code" onclick="this.select()">' . esc_textarea( self::ai_prompt() ) . '</textarea>';
-		echo '<h2 style="margin-top:32px">' . esc_html__( 'Full backup', 'lightweight-translation' ) . '</h2>';
-		echo '<div class="card" style="max-width:none"><p>' . esc_html__( 'The full backup includes translations, plugin settings, scan data, language preferences and language selectors added to menus. It does not contain your pages, products or other site content.', 'lightweight-translation' ) . '</p>';
-		echo '<p><a id="lt-full-backup-download" class="button" href="' . esc_url( LT_Data_Lifecycle::backup_url() ) . '">' . esc_html__( 'Download full backup (.json)', 'lightweight-translation' ) . '</a></p>';
-		echo '<p class="description">' . wp_kses_post( sprintf( __( 'To delete all the plugin data and deactivate it, go to <a href="%s">Settings › Maintenance › Danger zone</a>.', 'lightweight-translation' ), esc_url( admin_url( 'admin.php?page=lt-preferences#tools' ) ) ) ) . '</p>';
-		echo '<hr><h3>' . esc_html__( 'Restore a full backup', 'lightweight-translation' ) . '</h3><p>' . esc_html__( 'Choose a full backup file to restore translations and settings. Existing translations with the same text key will be replaced.', 'lightweight-translation' ) . '</p>';
-		if ( isset( $_GET['lt_full_restored'] ) ) echo '<div class="notice notice-success inline"><p>' . esc_html( sprintf( __( 'Backup restored. %d translation rows were imported.', 'lightweight-translation' ), absint( $_GET['lt_full_restored'] ) ) ) . '</p></div>'; // phpcs:ignore WordPress.Security.NonceVerification
-		echo '<form method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
-		wp_nonce_field( 'lt_full_restore' );
-		echo '<input type="hidden" name="action" value="lt_full_restore"><input type="file" name="lt_full_backup" accept=".json,application/json" required><p><label><input type="checkbox" name="confirm_restore" value="yes" required> ' . esc_html__( 'I understand that matching translations and plugin settings may be replaced.', 'lightweight-translation' ) . '</label></p>';
-		submit_button( __( 'Restore full backup', 'lightweight-translation' ), 'secondary', 'submit', false );
-		echo '</form><p style="margin-top:20px"><a href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=lt_export&raw=1' ), 'lt_export' ) ) . '">' . esc_html__( 'Download the raw translation table (CSV)', 'lightweight-translation' ) . '</a></p></div>';
+		echo '<p class="description" style="margin-top:32px">' . wp_kses_post( sprintf( __( 'Full backup, restore and plugin reset are in <a href="%s">Settings › Maintenance</a>.', 'lightweight-translation' ), esc_url( admin_url( 'admin.php?page=lt-preferences#tools' ) ) ) ) . '</p>';
 		echo '<script>document.getElementById("lt-export-all").addEventListener("change",function(e){document.querySelectorAll(".lt-export-group").forEach(function(c){c.checked=e.target.checked;});});</script>';
 		echo '</div>';
 	}

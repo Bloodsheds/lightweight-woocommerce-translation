@@ -2536,3 +2536,27 @@ msgstr "Réinitialiser le plugin et le désactiver"
 
 msgid "Deletes every translation, setting and scan of the plugin, then deactivates it. Your pages, products and other content stay. Download the full backup first: the button below unlocks once it is downloaded."
 msgstr "Supprime toutes les traductions, tous les réglages et analyses du plugin, puis le désactive. Vos pages, produits et autres contenus restent. Téléchargez d’abord la sauvegarde complète : le bouton ci-dessous se débloque une fois la sauvegarde téléchargée."
+
+msgid "Reads each public page in the base language, then lists, for each language, the texts that have no translation yet. Open the right translation directly."
+msgstr "Lit chaque page publique dans la langue de base, puis liste, pour chaque langue, les textes qui n’ont pas encore de traduction. Ouvrez directement la bonne traduction."
+
+msgid "Type of check"
+msgstr "Type de vérification"
+
+msgid "Quick check (base language)"
+msgstr "Vérification rapide (langue de base)"
+
+msgid "Reads each page once, in the base language, and lists its texts that have no saved translation. Fastest."
+msgstr "Lit chaque page une seule fois, dans la langue de base, et liste ses textes sans traduction enregistrée. Le plus rapide."
+
+msgid "In-depth check (every language)"
+msgstr "Vérification approfondie (toutes les langues)"
+
+msgid "Also opens each translated page, as a visitor sees it: finds texts that only change on display (theme, scripts). Slower."
+msgstr "Ouvre aussi chaque page traduite, comme la voit un visiteur : trouve les textes qui ne changent qu’à l’affichage (thème, scripts). Plus lent."
+
+msgid "Irreversible. Download a full backup first (below)."
+msgstr "Irréversible. Téléchargez d’abord une sauvegarde complète (ci-dessous)."
+
+msgid "Full backup, restore and plugin reset are in <a href=\"%s\">Settings › Maintenance</a>."
+msgstr "La sauvegarde complète, la restauration et la réinitialisation du plugin sont dans <a href=\"%s\">Réglages › Maintenance</a>."

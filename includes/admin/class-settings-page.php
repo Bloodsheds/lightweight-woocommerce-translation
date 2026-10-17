@@ -172,8 +172,9 @@ class LT_Settings_Page {
 		echo '</p><p><strong>' . esc_html__( 'Diagnostic report', 'lightweight-translation' ) . '</strong> <span class="description">' . esc_html__( '(copy it and send it when something does not work)', 'lightweight-translation' ) . '</span></p><textarea id="lt-diagnostic" readonly rows="14" class="large-text code" onclick="this.select()">' . esc_textarea( $this->diagnostics() ) . '</textarea><p><button type="button" class="button" data-copy="lt-diagnostic">' . esc_html__( 'Copy', 'lightweight-translation' ) . '</button></p>';
 
 		echo '<h2 class="lt-danger-title">' . esc_html__( 'Danger zone', 'lightweight-translation' ) . '</h2>';
-		if ( $counts ) $tool( 'delete_language', __( 'Delete all translations of this language', 'lightweight-translation' ), __( 'Irreversible. Download a backup first (Import / Export › Backup).', 'lightweight-translation' ), 'button button-link-delete', $options, __( 'Delete ALL translations of this language? This cannot be undone.', 'lightweight-translation' ) );
+		if ( $counts ) $tool( 'delete_language', __( 'Delete all translations of this language', 'lightweight-translation' ), __( 'Irreversible. Download a full backup first (below).', 'lightweight-translation' ), 'button button-link-delete', $options, __( 'Delete ALL translations of this language? This cannot be undone.', 'lightweight-translation' ) );
 		LT_Data_Lifecycle::reset_form();
+		LT_Data_Lifecycle::backup_section();
 		echo '</section></div>';
 		$this->script( $catalog );
 	}

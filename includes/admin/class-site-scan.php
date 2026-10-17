@@ -12,7 +12,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class LT_Site_Scan {
 	const RESULTS   = 'lt_site_scan';    // [ time, end, texts => [ id => text ], pages => [ ref => [ l => label, o => url, r => [ lang => [ u => url, t => visible ids, h => hidden ids, e => error ] ] ] ] ]
-	const LOGIC_VERSION = 3;
+	const LOGIC_VERSION = 4; // 4: quick check (base-language page compared with the saved translations) or in-depth check
 	const IGNORED   = 'lt_scan_ignored'; // lowercase text => text: same in every language (brand, name…), not reported
 	const BATCH     = 100;               // pages listed per AJAX call
 	const MAX_TEXTS = 80;                // texts kept per page and language
@@ -25,6 +25,9 @@ class LT_Site_Scan {
 		foreach ( array( 'list', 'save', 'ignore' ) as $action ) add_action( 'wp_ajax_lt_site_scan_' . $action, array( $this, 'ajax_' . $action ) );
 		add_action( 'wp_enqueue_scripts', array( $this, 'check_mode' ), 30 );
 		add_action( 'admin_bar_menu', array( $this, 'admin_bar' ), 86 );
+		// Pages opened by the check are read, not looked at: no admin bar to build.
+		if ( ! is_admin() && LT_Page_Texts::scan_frame() ) add_filter( 'show_admin_bar', '__return_false' );
+		add_action( 'lt_translation_saved', function( $row ) { delete_transient( 'lt_scan_known_' . sanitize_key( $row['language_code'] ?? '' ) ); } );
 	}
 
 	public function menu() { add_submenu_page( 'lt-settings', __( 'Check the site', 'lightweight-translation' ), '🔴 ' . __( 'Check the site', 'lightweight-translation' ), lt_capability(), 'lt-scan', array( $this, 'page' ) ); }
@@ -147,6 +150,19 @@ class LT_Site_Scan {
 		self::check();
 		$ref   = sanitize_text_field( wp_unslash( $_POST['key'] ?? '' ) );
 		$found = json_decode( wp_unslash( (string) ( $_POST['found'] ?? '' ) ), true ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		if ( isset( $_POST['texts'] ) ) { // texts of the base-language page: what is still untranslated, per language
+			$list  = json_decode( wp_unslash( (string) $_POST['texts'] ), true ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+			$found = array();
+			foreach ( self::languages() as $language ) {
+				if ( ! empty( $_POST['error'] ) || ! is_array( $list ) ) { $found[ $language ] = array( 'e' => 1 ); continue; }
+				$missing = array();
+				foreach ( array_slice( $list, 0, 800 ) as $text ) {
+					$string = is_array( $text ) ? (string) ( $text[0] ?? '' ) : '';
+					if ( '' !== trim( $string ) && ! self::is_translated( $language, $string ) ) $missing[] = array( $string, empty( $text[1] ) ? 0 : 1 );
+				}
+				$found[ $language ] = array( 't' => $missing );
+			}
+		}
 		if ( '' === $ref || ! is_array( $found ) ) wp_send_json_error();
 		$results   = self::results();
 		$ids       = array_flip( $results['texts'] );
@@ -172,6 +188,56 @@ class LT_Site_Scan {
 		wp_send_json_success();
 	}
 
+	/* ---------- Is a text of the base page translated? ---------- */
+
+	private static function normal( $text ) {
+		return mb_strtolower( trim( preg_replace( '/\s+/u', ' ', html_entity_decode( wp_strip_all_tags( (string) $text ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) ) );
+	}
+
+	/**
+	 * Every original that has a translation in a language, as one line per paragraph / title / label
+	 * ("\n…\n"), plus the fixed part of interface texts with %s placeholders. Kept until a translation changes.
+	 */
+	private static function known( $language ) {
+		static $memo = array();
+		$signature = (string) get_option( 'lt_catalog_revision', '' ); // full resets; each saved translation clears the list below
+		if ( isset( $memo[ $language ] ) ) return $memo[ $language ];
+		$cached = get_transient( 'lt_scan_known_' . $language );
+		if ( is_array( $cached ) && ( $cached['sig'] ?? '' ) === $signature ) return $memo[ $language ] = $cached;
+		global $wpdb;
+		$lines = array(); $parts = array();
+		$rows  = $wpdb->get_results( $wpdb->prepare( 'SELECT object_type, source_text FROM ' . LT_Translation_Store::table() . " WHERE language_code=%s AND status IN ('translated','reviewed') AND TRIM(translated_text) <> '' AND field_key <> 'slug'", $language ) ); // phpcs:ignore WordPress.DB
+		foreach ( (array) $rows as $row ) {
+			$source = preg_replace( '#<(?:br|hr)\b[^>]*>|</?(?:p|div|h[1-6]|li|ul|ol|tr|td|th|table|section|article|header|footer|blockquote|figure|figcaption|dt|dd|button|label|option)\b[^>]*>#i', "\n", (string) $row->source_text );
+			foreach ( explode( "\n", $source ) as $line ) {
+				$line = self::normal( $line );
+				if ( '' === $line ) continue;
+				$lines[ $line ] = true;
+				// Interface texts with placeholders ("%s items"): their longest fixed part is enough.
+				if ( 'string' === $row->object_type && preg_match( '/%(?:\d+\$)?[sdfu]|\{[a-z_]+\}/i', $line ) ) {
+					$pieces = preg_split( '/%(?:\d+\$)?[sdfu]|\{[a-z_]+\}/i', $line );
+					usort( $pieces, function( $a, $b ) { return strlen( $b ) - strlen( $a ); } );
+					$piece = trim( (string) $pieces[0] );
+					if ( mb_strlen( $piece ) >= 4 ) $parts[ $piece ] = true;
+				}
+			}
+		}
+		$cached = array( 'sig' => $signature, 'text' => "\n" . implode( "\n", array_keys( $lines ) ) . "\n", 'parts' => array_keys( $parts ) );
+		set_transient( 'lt_scan_known_' . $language, $cached, DAY_IN_SECONDS );
+		return $memo[ $language ] = $cached;
+	}
+
+	/** A text read on the base page counts as translated when a saved translation covers it. */
+	private static function is_translated( $language, $text ) {
+		$text = self::normal( $text );
+		if ( '' === $text ) return true;
+		$known = self::known( $language );
+		if ( false !== strpos( $known['text'], "\n" . $text . "\n" ) ) return true; // a whole title, label or paragraph
+		if ( mb_strlen( $text ) >= 12 && false !== strpos( $known['text'], $text ) ) return true; // part of a longer translated text
+		foreach ( $known['parts'] as $part ) if ( false !== strpos( $text, $part ) ) return true; // "%s items" → "3 items"
+		return false;
+	}
+
 	/** "Same in every language" (a brand, a name…): no longer reported. undo=1 reports it again. */
 	public function ajax_ignore() {
 		self::check();
@@ -191,7 +257,7 @@ class LT_Site_Scan {
 		$languages = self::languages();
 		$results   = self::results();
 		echo '<div class="wrap lt-scan"><h1>' . esc_html__( 'Check the site', 'lightweight-translation' ) . '</h1>';
-		echo '<p class="lt-scan-intro">' . esc_html__( 'Compare each public page in the original language and your translations. See which visible texts still need translation, then open the right translation directly.', 'lightweight-translation' ) . '</p>';
+		echo '<p class="lt-scan-intro">' . esc_html__( 'Reads each public page in the base language, then lists, for each language, the texts that have no translation yet. Open the right translation directly.', 'lightweight-translation' ) . '</p>';
 		if ( ! $languages ) { echo '<div class="notice notice-info inline"><p>' . wp_kses_post( sprintf( __( 'Choose at least one translation language in <a href="%s">Settings</a> before checking the site.', 'lightweight-translation' ), esc_url( LT_Admin_Navigation::url( 'lt-preferences' ) . '#languages' ) ) ) . '</p></div></div>'; return; }
 		$cart_url = LT_Page_Texts::sample_cart_url();
 		if ( ! get_option( 'permalink_structure' ) ) echo '<div class="notice notice-warning inline"><p>' . wp_kses_post( sprintf( __( 'The check needs translated page addresses. Enable pretty permalinks in <a href="%s">WordPress permalink settings</a>.', 'lightweight-translation' ), esc_url( admin_url( 'options-permalink.php' ) ) ) ) . '</p></div>';
@@ -208,13 +274,18 @@ class LT_Site_Scan {
 		}
 		echo '</div>';
 		if ( $cart_url ) echo '<label class="lt-scan-cart"><input type="checkbox" id="lt-scan-cart"> <span><strong>' . esc_html__( 'Test cart and checkout with a sample product', 'lightweight-translation' ) . '</strong><small>' . esc_html__( 'Adds one product to this browser’s shop cart so checkout texts can appear. Remove it from the cart after the check if you do not need it.', 'lightweight-translation' ) . '</small></span></label>';
+		echo '<fieldset class="lt-scan-modes"><legend class="screen-reader-text">' . esc_html__( 'Type of check', 'lightweight-translation' ) . '</legend>';
+		echo '<label class="lt-scan-cart"><input type="radio" name="lt-scan-mode" value="quick" checked> <span><strong>' . esc_html__( 'Quick check (base language)', 'lightweight-translation' ) . '</strong><small>' . esc_html__( 'Reads each page once, in the base language, and lists its texts that have no saved translation. Fastest.', 'lightweight-translation' ) . '</small></span></label>';
+		echo '<label class="lt-scan-cart"><input type="radio" name="lt-scan-mode" value="full"> <span><strong>' . esc_html__( 'In-depth check (every language)', 'lightweight-translation' ) . '</strong><small>' . esc_html__( 'Also opens each translated page, as a visitor sees it: finds texts that only change on display (theme, scripts). Slower.', 'lightweight-translation' ) . '</small></span></label></fieldset>';
 		echo '<p class="lt-scan-estimate" id="lt-scan-estimate" aria-live="polite"></p><div class="lt-scan-actions">';
 		if ( $partial ) echo '<button type="button" class="button button-primary lt-scan-start" data-reset="0">' . esc_html__( 'Continue check', 'lightweight-translation' ) . '</button> ';
 		echo '<button type="button" class="button ' . ( $partial ? '' : 'button-primary ' ) . 'lt-scan-start" data-reset="1">' . esc_html( $partial ? __( 'Start a new check', 'lightweight-translation' ) : __( 'Start check', 'lightweight-translation' ) ) . '</button> ';
 		if ( $partial ) echo '<span class="description">' . esc_html( sprintf( __( '%1$d pages already checked · last check %2$s ago', 'lightweight-translation' ), count( $results['pages'] ), human_time_diff( (int) $results['end'] ?: (int) $results['time'] ) ) ) . '</span>';
 		echo '<button type="button" class="button" id="lt-scan-stop" style="display:none">' . esc_html__( 'Stop and save progress', 'lightweight-translation' ) . '</button></div>';
 		echo '<div class="lt-progress" id="lt-scan-progress"><span></span></div><p id="lt-scan-status" aria-live="polite"></p></section>';
-		echo '<iframe id="lt-scan-frame" title="" aria-hidden="true" style="position:fixed;left:-10000px;top:0;width:1280px;height:900px;border:0"></iframe>';
+		// Hidden frames that read the pages: invisible and unfocusable, so a page that focuses a field (account,
+		// checkout…) cannot scroll this screen; the sandbox keeps them from navigating this screen away.
+		echo '<iframe id="lt-scan-frame" title="" aria-hidden="true" tabindex="-1" sandbox="allow-same-origin allow-scripts allow-forms" style="position:fixed;left:-10000px;top:0;width:1280px;height:900px;border:0;visibility:hidden;pointer-events:none"></iframe>';
 
 		if ( $results['pages'] && ! $stale ) {
 			echo '<div class="lt-scan-results"><div class="lt-scan-results-head"><div><h2>' . esc_html__( 'Check results', 'lightweight-translation' ) . '</h2><p class="description">' . esc_html__( 'Search a page or a detected text. Choose “Translate this text” to fix it, or mark wording that is intentionally the same in every language.', 'lightweight-translation' ) . '</p></div><label class="screen-reader-text" for="lt-scan-filter">' . esc_html__( 'Filter results', 'lightweight-translation' ) . '</label><input type="search" id="lt-scan-filter" placeholder="' . esc_attr__( 'Filter pages and texts…', 'lightweight-translation' ) . '"></div><div id="lt-scan-report">';
@@ -257,9 +328,9 @@ class LT_Site_Scan {
   function kinds() { return Array.prototype.filter.call(document.querySelectorAll('.lt-scan-kind'), function (box) { return box.checked; }); }
   function estimate() {
     var pages = kinds().reduce(function (n, box) { return n + Number(box.getAttribute('data-count')); }, 0);
-    document.getElementById('lt-scan-estimate').textContent = pages ? cfg.labels.estimate.replace('%pages', pages.toLocaleString()).replace('%min', Math.max(1, Math.round(pages * (cfg.languages.length + 1) * 1.5 / WORKERS / 60))) : cfg.labels.noSelection;
+    document.getElementById('lt-scan-estimate').textContent = pages ? cfg.labels.estimate.replace('%pages', pages.toLocaleString()).replace('%min', Math.max(1, Math.round(pages * (fullMode() ? cfg.languages.length + 1 : 1) * 3 / WORKERS / 60))) : cfg.labels.noSelection;
   }
-  document.querySelectorAll('.lt-scan-kind').forEach(function (box) { box.addEventListener('change', estimate); });
+  document.querySelectorAll('.lt-scan-kind,input[name="lt-scan-mode"]').forEach(function (box) { box.addEventListener('change', estimate); });
   estimate();
   var filter = document.getElementById('lt-scan-filter');
   if (filter) filter.addEventListener('input', function () {
@@ -279,10 +350,18 @@ class LT_Site_Scan {
   }
   // Several pages are read at the same time, each in its own hidden frame; results are saved one by one.
   var frames = [frame], saving = Promise.resolve();
+  // A page read in a frame may lock the scrolling of this screen (popup, menu, cart panel): undone after each page.
+  function unlock() {
+    [document.documentElement, document.body].forEach(function (el) { if (el && 'hidden' === el.style.overflow) el.style.overflow = ''; });
+    document.documentElement.classList.remove('wd-locked', 'no-scroll', 'modal-open');
+    document.body.classList.remove('wd-locked', 'no-scroll', 'modal-open');
+  }
   function frameFor(n) {
     while (frames.length <= n) { var copy = frame.cloneNode(false); copy.removeAttribute('id'); frame.parentNode.appendChild(copy); frames.push(copy); }
     return frames[n];
   }
+  // lt_scan: page opened by the check (lighter: no admin bar; texts are noted from the original page only).
+  function mark(url, kind) { var hash = url.indexOf('#'); if (hash > -1) url = url.slice(0, hash); return url + (url.indexOf('?') > -1 ? '&' : '?') + 'lt_scan=' + kind; }
   async function read(view, url) {
     var doc;
     try { doc = await ltScan.load(view, url, WAIT, QUIET); }
@@ -290,19 +369,29 @@ class LT_Site_Scan {
     return ltScan.collect(doc);
   }
   function save(data) { saving = saving.then(function () { return post('save', data); }); return saving; }
-  async function scan(item, view) {
+  // Only the page in the base language is read. The site then says, for every language, which of its
+  // texts have no translation yet (one page read per item, whatever the number of languages).
+  function fullMode() { var r = document.querySelector('input[name="lt-scan-mode"]:checked'); return !!r && 'full' === r.value; }
+  // In-depth check: the base page and every translated page are read and compared, as a visitor sees them.
+  async function scanFull(item, view) {
     var found = {}, original = null;
-    try { original = await read(view, item.original); } catch (e) { original = null; }
+    try { original = await read(view, mark(item.original, 'o')); } catch (e) { original = null; }
     for (var i = 0; i < cfg.languages.length; i++) {
       var language = cfg.languages[i], url = item.urls[language];
       if (!url) continue;
       if (!original) { found[language] = { u: url, e: 1 }; continue; }
       try {
-        var texts = ltScan.compare(original, await read(view, url), skip);
+        var texts = ltScan.compare(original, await read(view, mark(url, 't')), skip);
         found[language] = { u: url, t: texts.map(function (t) { return [t.text, t.visible ? 1 : 0]; }) };
       } catch (e) { found[language] = { u: url, e: 1 }; }
     }
     await save({ key: item.key, label: item.label, original: item.original, found: JSON.stringify(found) });
+  }
+  async function scan(item, view) {
+    if (fullMode()) return scanFull(item, view);
+    var texts = null;
+    try { texts = ltScan.list(await read(view, mark(item.original, 'o')), skip).slice(0, 800); } catch (e) { texts = null; }
+    await save({ key: item.key, label: item.label, original: item.original, texts: texts ? JSON.stringify(texts) : '', error: texts ? 0 : 1 });
   }
   async function run(reset) {
     stopped = false;
@@ -332,6 +421,7 @@ class LT_Site_Scan {
           var item = items[next++];
           status.textContent = cfg.labels.reading + ' ' + Math.min(finished + 1, items.length) + ' / ' + items.length + ' · ' + item.label;
           await scan(item, view);
+          unlock();
           finished++;
           bar.style.width = Math.round(finished * 100 / items.length) + '%';
         }

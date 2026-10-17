@@ -72,7 +72,7 @@ class LT_Page_Texts {
 		if ( null === self::$on ) {
 			if ( ! did_action( 'init' ) ) return false; // user not known yet
 			self::$on = false; // no recursion if a check below translates a text
-			self::$on = ! wp_doing_cron() && ( ! is_admin() || self::is_front_request() ) && is_user_logged_in() && current_user_can( lt_capability() );
+			self::$on = ! wp_doing_cron() && ( ! is_admin() || self::is_front_request() ) && is_user_logged_in() && current_user_can( lt_capability() ) && ! self::scan_copy();
 		}
 		return self::$on;
 	}
@@ -83,6 +83,11 @@ class LT_Page_Texts {
 		if ( 0 === strpos( $action, 'lt_' ) || 'heartbeat' === $action ) return false;
 		return false === strpos( (string) wp_get_raw_referer(), '/wp-admin/' );
 	}
+
+	/** Translated copy of a page opened by "Check the site": its texts were already noted on the original page. */
+	public static function scan_copy() { return 't' === sanitize_key( $_GET['lt_scan'] ?? '' ); } // phpcs:ignore WordPress.Security.NonceVerification
+	/** Any page opened by "Check the site". */
+	public static function scan_frame() { return '' !== sanitize_key( $_GET['lt_scan'] ?? '' ); } // phpcs:ignore WordPress.Security.NonceVerification
 
 	public static function pause() { self::$paused = true; }
 	public static function resume() { self::$paused = false; }

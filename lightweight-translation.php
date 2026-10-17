@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Lightweight Translation
  * Description: Simple, lightweight translations for WordPress, with optional WooCommerce and theme integrations.
- * Version: 0.47.0
+ * Version: 1.0.0
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Text Domain: lightweight-translation
  */
 defined( 'ABSPATH' ) || exit;
 
-define( 'LT_VERSION', '0.47.0' );
+define( 'LT_VERSION', '1.0.0' );
 define( 'LT_FILE', __FILE__ );
 define( 'LT_DIR', plugin_dir_path( __FILE__ ) );
 

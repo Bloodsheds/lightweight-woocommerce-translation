@@ -1,7 +1,7 @@
 === Lightweight Translation ===
 Requires at least: 6.2
 Requires PHP: 7.4
-Stable tag: 0.47.0
+Stable tag: 1.0.0
 
 Simple translations for WordPress, with optional WooCommerce, WoodMart and Product Bundles integrations.
 
@@ -18,7 +18,7 @@ One original WordPress object is kept per page, product or term. Translations ar
 7. Add [lt_language_switcher] in a block or widget.
 
 == Full backup, reset and uninstall ==
-Import / Export can download a full JSON backup containing translation rows, plugin settings and scan data, language preferences, and language selectors created by the plugin. Restore the JSON file from the same screen; content rows whose WordPress objects no longer exist are skipped.
+Settings > Maintenance can download a full JSON backup containing translation rows, plugin settings and scan data, language preferences, and language selectors created by the plugin. Restore the JSON file from the same screen; content rows whose WordPress objects no longer exist are skipped.
 To clear plugin data, open Settings > Maintenance > Danger zone, download the full backup, then confirm the reset. This clears the plugin's translation table, settings, scan data, user language preferences and its menu selector items, then deactivates the plugin. Pages, products, terms and other menu items remain. The backup must be kept outside the site to restore later.
 Deleting the plugin from the WordPress Plugins screen also removes its owned data. Export a full backup before deleting if you may want to restore it.
 

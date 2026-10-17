@@ -29,7 +29,7 @@ foreach ( $switchers as $id ) wp_delete_post( $id, true );
 delete_metadata( 'post', 0, '_lt_switcher', '', true );
 delete_metadata( 'post', 0, '_lt_switcher_style', '', true );
 
-$names = array( 'lt_strings_%', 'lt_wcjs_%', 'lt_content_hashes_%', 'lt_admin_text_origins', 'lt_settings_texts_read', 'lt_list_%', 'lt_status_summary_%', 'lt_overview_progress_%', 'lt_full_backup_ready_%' );
+$names = array( 'lt_strings_%', 'lt_wcjs_%', 'lt_content_hashes_%', 'lt_admin_text_origins', 'lt_settings_texts_read', 'lt_list_%', 'lt_status_summary_%', 'lt_overview_progress_%', 'lt_scan_known_%', 'lt_full_backup_ready_%' );
 foreach ( $names as $name ) foreach ( array( '_transient_', '_transient_timeout_', '_site_transient_', '_site_transient_timeout_' ) as $prefix ) {
 	$pattern = $prefix . $name;
 	$like = $wpdb->esc_like( str_replace( '%', '', $pattern ) ) . ( false !== strpos( $pattern, '%' ) ? '%' : '' );

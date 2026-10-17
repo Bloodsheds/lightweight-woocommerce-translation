@@ -198,7 +198,7 @@ class LT_Data_Lifecycle {
 		foreach ( $router->languages() as $language ) { delete_transient( 'lt_strings_' . $language ); delete_transient( 'lt_wcjs_' . $language ); delete_transient( 'lt_content_hashes_' . $language ); }
 		if ( class_exists( 'LT_Content_Catalog' ) ) LT_Content_Catalog::flush_summary();
 		if ( $wpdb_error ) wp_die( esc_html__( 'Some translations could not be restored. The available settings and menu selectors were restored; please retry from this backup.', 'lightweight-translation' ) );
-		wp_safe_redirect( add_query_arg( array( 'page' => 'lt-export', 'lt_full_restored' => $wpdb_rows ), admin_url( 'admin.php' ) ) );
+		wp_safe_redirect( add_query_arg( array( 'page' => 'lt-preferences', 'lt_full_restored' => $wpdb_rows ), admin_url( 'admin.php' ) ) . '#tools' );
 		exit;
 	}
 
@@ -212,7 +212,7 @@ class LT_Data_Lifecycle {
 	private static function clear_transients() {
 		global $wpdb;
 		$table = $wpdb->options;
-		$names = array( 'lt_strings_%', 'lt_wcjs_%', 'lt_content_hashes_%', 'lt_admin_text_origins', 'lt_settings_texts_read', 'lt_list_%', 'lt_status_summary_%', 'lt_overview_progress_%', self::RESET_TOKEN . '%' );
+		$names = array( 'lt_strings_%', 'lt_wcjs_%', 'lt_content_hashes_%', 'lt_admin_text_origins', 'lt_settings_texts_read', 'lt_list_%', 'lt_status_summary_%', 'lt_overview_progress_%', 'lt_scan_known_%', self::RESET_TOKEN . '%' );
 		$patterns = array();
 		foreach ( $names as $name ) foreach ( array( '_transient_', '_transient_timeout_', '_site_transient_', '_site_transient_timeout_' ) as $prefix ) $patterns[] = $prefix . $name;
 		foreach ( $patterns as $pattern ) {
@@ -241,6 +241,20 @@ class LT_Data_Lifecycle {
 		if ( function_exists( 'wp_cache_flush_group' ) ) wp_cache_flush_group( 'lt_content' );
 	}
 
+	/** Full backup: download, restore, raw table. Settings › Maintenance, below the danger zone. */
+	public static function backup_section() {
+		echo '<h2>' . esc_html__( 'Full backup', 'lightweight-translation' ) . '</h2>';
+		echo '<div class="card" style="max-width:none"><p>' . esc_html__( 'The full backup includes translations, plugin settings, scan data, language preferences and language selectors added to menus. It does not contain your pages, products or other site content.', 'lightweight-translation' ) . '</p>';
+		echo '<p><a class="button lt-full-backup-link" href="' . esc_url( self::backup_url() ) . '">' . esc_html__( 'Download full backup (.json)', 'lightweight-translation' ) . '</a></p>';
+		echo '<hr><h3>' . esc_html__( 'Restore a full backup', 'lightweight-translation' ) . '</h3><p>' . esc_html__( 'Choose a full backup file to restore translations and settings. Existing translations with the same text key will be replaced.', 'lightweight-translation' ) . '</p>';
+		if ( isset( $_GET['lt_full_restored'] ) ) echo '<div class="notice notice-success inline"><p>' . esc_html( sprintf( __( 'Backup restored. %d translation rows were imported.', 'lightweight-translation' ), absint( $_GET['lt_full_restored'] ) ) ) . '</p></div>'; // phpcs:ignore WordPress.Security.NonceVerification
+		echo '<form method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		wp_nonce_field( 'lt_full_restore' );
+		echo '<input type="hidden" name="action" value="lt_full_restore"><input type="file" name="lt_full_backup" accept=".json,application/json" required><p><label><input type="checkbox" name="confirm_restore" value="yes" required> ' . esc_html__( 'I understand that matching translations and plugin settings may be replaced.', 'lightweight-translation' ) . '</label></p>';
+		submit_button( __( 'Restore full backup', 'lightweight-translation' ), 'secondary', 'submit', false );
+		echo '</form><p style="margin-top:20px"><a href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=lt_export&raw=1' ), 'lt_export' ) ) . '">' . esc_html__( 'Download the raw translation table (CSV)', 'lightweight-translation' ) . '</a></p></div>';
+	}
+
 	/** Reset of the plugin (backup first, then delete its data and deactivate it): Settings › Maintenance › Danger zone. */
 	public static function reset_form() {
 		echo '<div class="lt-reset-plugin"><h3>' . esc_html__( 'Reset the plugin and deactivate it', 'lightweight-translation' ) . '</h3><p class="description">' . esc_html__( 'Deletes every translation, setting and scan of the plugin, then deactivates it. Your pages, products and other content stay. Download the full backup first: the button below unlocks once it is downloaded.', 'lightweight-translation' ) . '</p>';
@@ -248,7 +262,7 @@ class LT_Data_Lifecycle {
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin:16px 0" onsubmit="return confirm(' . esc_attr( wp_json_encode( __( 'This removes the plugin data and deactivates Lightweight Translation. Continue?', 'lightweight-translation' ) ) ) . ')">';
 		wp_nonce_field( 'lt_full_reset' );
 		echo '<input type="hidden" name="action" value="lt_full_reset"><label><input id="lt-full-reset-confirm" type="checkbox" name="confirm_download" value="yes" required> ' . esc_html__( 'I downloaded the backup and want to remove the plugin data and deactivate the plugin.', 'lightweight-translation' ) . '</label><p><button id="lt-full-reset-button" class="button button-link-delete" disabled>' . esc_html__( 'Reset plugin and deactivate', 'lightweight-translation' ) . '</button></p></form>';
-		echo '</div><script>(function(){var d=document.getElementById("lt-full-backup-download"),c=document.getElementById("lt-full-reset-confirm"),b=document.getElementById("lt-full-reset-button");if(d&&c&&b){d.addEventListener("click",function(){sessionStorage.setItem("ltFullBackupRequested","1");});c.addEventListener("change",function(){b.disabled=!c.checked||sessionStorage.getItem("ltFullBackupRequested")!=="1";});}})();</script>';
+		echo '</div><script>document.addEventListener("DOMContentLoaded",function(){var d=document.querySelectorAll("#lt-full-backup-download,.lt-full-backup-link"),c=document.getElementById("lt-full-reset-confirm"),b=document.getElementById("lt-full-reset-button");if(d.length&&c&&b){d.forEach(function(l){l.addEventListener("click",function(){sessionStorage.setItem("ltFullBackupRequested","1");});});c.addEventListener("change",function(){b.disabled=!c.checked||sessionStorage.getItem("ltFullBackupRequested")!=="1";});}});</script>';
 	}
 
 	public function reset() {

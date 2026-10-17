@@ -116,7 +116,18 @@
     });
   }
 
-  window.ltScan = { collect: collect, compare: compare, load: load, key: key };
+  /** Texts of one page as [text, visible (1/0)], visible ones first; skip: lowercase texts not to report. */
+  function list(found, skip) {
+    var out = [];
+    Object.keys(found).forEach(function (k) {
+      if (skip && skip[k]) return;
+      out.push([found[k].text, found[k].els.some(function (el) { return !hidden(el); }) ? 1 : 0]);
+    });
+    out.sort(function (a, b) { return b[1] - a[1]; });
+    return out;
+  }
+
+  window.ltScan = { collect: collect, compare: compare, list: list, load: load, key: key };
 
   /* ---------- "Highlight untranslated texts" on the page itself (?lt_check=1) ---------- */
 
@@ -136,7 +147,8 @@
     document.body.appendChild(bar);
     var frame = document.createElement('iframe');
     frame.setAttribute('aria-hidden', 'true');
-    frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + Math.max(window.innerWidth, 360) + 'px;height:900px;border:0';
+    frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + Math.max(window.innerWidth, 360) + 'px;height:900px;border:0;visibility:hidden;pointer-events:none';
+    frame.tabIndex = -1;
     document.body.appendChild(frame);
     var skip = Object.create(null);
     (data.ignored || []).forEach(function (text) { skip[key(text)] = true; });

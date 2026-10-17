@@ -149,7 +149,7 @@ class LT_Script_Texts {
 			}
 		}
 		// Administrators: note which texts each page asks wp.i18n for (listed in Interface texts › By page).
-		if ( is_user_logged_in() && current_user_can( lt_capability() ) ) {
+		if ( is_user_logged_in() && current_user_can( lt_capability() ) && ! LT_Page_Texts::scan_frame() ) {
 			wp_add_inline_script( 'wp-hooks', '(function(h,u,nc,ty){if(!h||!window.fetch)return;var s={},c=0;function r(k,d,p,t){d=d||"default";if(!s[k]&&c<2000){s[k]={k:k,d:d,p:p||"",t:typeof t==="string"?t:""};c++;}}'
 				. 'h.addFilter("i18n.gettext","lt/seen",function(t,x,d){r(x,d,"",t);return t;},1);'
 				. 'h.addFilter("i18n.gettext_with_context","lt/seen",function(t,x,ctx,d){r(ctx+"\u0004"+x,d,"",t);return t;},1);'
