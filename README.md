@@ -92,6 +92,5 @@ Translations can be exported as a full JSON backup before you reset or remove th
 
 This project is a work in progress, and compatibility can vary between WordPress sites, themes and extensions. If you run into a problem, please include your WordPress and PHP versions, the active theme and relevant plugins, and the steps to reproduce it when opening a GitHub issue. Bug fixes, compatibility reports, ideas and pull requests are all welcome.
 
-**Less hassle. More languages. More freedom. 🌍**
-
-*Made out of frustration. Shared with everyone. Built to stay lightweight.*
+<p align="center"><strong>Less hassle. More languages. More freedom. 🌍</strong><br>
+Made out of frustration. Shared with everyone. Built to stay lightweight.</p>
