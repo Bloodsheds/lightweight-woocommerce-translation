@@ -29,7 +29,6 @@ Lightweight Translation is still growing. It is designed around a small WordPres
 - WordPress 6.2 or later
 - PHP 7.4 or later
 - WooCommerce is optional. It is needed only for shop-specific features.
-- Current plugin version: 0.46.0
 
 ### Install
 
