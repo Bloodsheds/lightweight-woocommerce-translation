@@ -1,0 +1,7 @@
+Bundled WooCommerce text catalog
+
+Source: WooCommerce 11.1.0, supplied archive woocommerce.zip, i18n/languages/woocommerce.pot and its source references.
+Copyright: Automattic and the WooCommerce contributors.
+License: GNU General Public License version 3 or later. See WOO-LICENSE.txt.
+
+The generated catalog contains selected text, contexts and source references, plus classification keys for countries and regions. No WooCommerce executable code is bundled. It was modified by the Lightweight Translation catalog builder to select and organize relevant translation candidates. Version and archive SHA-256 are recorded in catalog.json. The reproducible builder is provided with the project sources in tools/build-woocommerce-catalog.py.

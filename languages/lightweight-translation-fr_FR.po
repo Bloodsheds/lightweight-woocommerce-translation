@@ -1,0 +1,2538 @@
+msgid ""
+msgstr "Project-Id-Version: Lightweight Translation 0.42.0\nLanguage: fr_FR\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n > 1);\nX-Domain: lightweight-translation\n"
+
+msgid "\"Hidden\": the language is not in the switcher nor in hreflang tags, and visitors are sent back to the original. Logged-in editors can still open it to check the translation before publishing it."
+msgstr "« Masquée » : la langue n’apparaît ni dans le sélecteur ni dans les balises hreflang. Les visiteurs voient la version originale. Les éditeurs connectés peuvent vérifier la traduction avant sa publication."
+
+msgid "\"Language\" selector above the fields + Translations box below the editor."
+msgstr "Sélecteur de langue au-dessus des champs et encadré Traductions sous l’éditeur."
+
+msgid "\"Translations\" column in Pages / Posts / Products lists"
+msgstr "Colonne « Traductions » dans les listes de pages, articles et produits"
+
+msgid "%1$d / %2$d translated"
+msgstr "%1$d / %2$d traduits"
+
+msgid "%1$d more text comes from plugins / themes not enabled for translation: %2$s."
+msgid_plural "%1$d more texts come from plugins / themes not enabled for translation: %2$s."
+msgstr[0] "%1$d autre texte provient d’un outil dont la traduction n’est pas activée : %2$s."
+msgstr[1] "%1$d autres textes proviennent d’outils dont la traduction n’est pas activée : %2$s."
+
+msgid "%1$d of %2$d texts translated · %3$d to review"
+msgstr "%1$d textes traduits sur %2$d · %3$d à vérifier"
+
+msgid "%1$d pages already checked · last check %2$s ago"
+msgstr "%1$d pages déjà vérifiées · dernière vérification il y a %2$s"
+
+msgid "%1$d texts to review on this page, outlined in red (%2$d hidden in menus, tabs or popups)."
+msgstr "%1$d textes à vérifier sur cette page, encadrés en rouge (%2$d masqués dans les menus, onglets ou fenêtres)."
+
+msgid "%1$d translations deleted for %2$s."
+msgstr "%1$d traductions supprimées pour %2$s."
+
+msgid "%1$s: %2$d pages to review, %3$d without identical texts"
+msgstr "%1$s : %2$d pages à vérifier, %3$d sans texte identique"
+
+msgid "%d empty texts now use the original."
+msgstr "%d textes vides utilisent désormais l’original."
+
+msgid "%d hidden"
+msgstr "%d masqués"
+
+msgid "%d ignored texts"
+msgstr "%d textes ignorés"
+
+msgid "%d item"
+msgid_plural "%d items"
+msgstr[0] "%d contenu"
+msgstr[1] "%d contenus"
+
+msgid "%d left"
+msgstr "%d restants"
+
+msgid "%d more text is the same as a WooCommerce or theme text: it uses that translation, so it is not listed here."
+msgid_plural "%d more texts are the same as WooCommerce or theme texts: they use that translation, so they are not listed here."
+msgstr[0] "%d autre texte est identique à un texte WooCommerce ou du thème : il utilise sa traduction et n’est pas répété ici."
+msgstr[1] "%d autres textes sont identiques à des textes WooCommerce ou du thème : ils utilisent leurs traductions et ne sont pas répétés ici."
+
+msgid "%d orphan translations deleted."
+msgstr "%d traductions sans contenu associé supprimées."
+
+msgid "%d page could not be read"
+msgid_plural "%d pages could not be read"
+msgstr[0] "%d page n’a pas pu être vérifiée"
+msgstr[1] "%d pages n’ont pas pu être vérifiées"
+
+msgid "%d paragraph"
+msgid_plural "%d paragraphs"
+msgstr[0] "%d paragraphe"
+msgstr[1] "%d paragraphes"
+
+msgid "%d text"
+msgid_plural "%d texts"
+msgstr[0] "%d texte"
+msgstr[1] "%d textes"
+
+msgid "%d text removed."
+msgid_plural "%d texts removed."
+msgstr[0] "%d texte retiré."
+msgstr[1] "%d textes retirés."
+
+msgid "%d texts can be translated again."
+msgstr "%d textes peuvent de nouveau être traduits."
+
+msgid "%d texts deleted."
+msgstr "%d textes supprimés."
+
+msgid "%d texts kept in the original language."
+msgstr "%d textes conservés dans la langue originale."
+
+msgid "%d texts typed in settings and widgets found."
+msgstr "%d textes trouvés dans les réglages et les widgets."
+
+msgid "%d to do"
+msgstr "%d à traduire"
+
+msgid "%d translation saved."
+msgid_plural "%d translations saved."
+msgstr[0] "%d traduction enregistrée."
+msgstr[1] "%d traductions enregistrées."
+
+msgid "%d translations deleted."
+msgstr "%d traductions supprimées."
+
+msgid "%d translations marked as still correct."
+msgstr "%d traductions marquées comme toujours correctes."
+
+msgid "%d translations removed."
+msgstr "%d traductions retirées."
+
+msgid "%d translations saved."
+msgstr "%d traductions enregistrées."
+
+msgid "%d untranslated texts deleted."
+msgstr "%d textes non traduits supprimés."
+
+msgid "%d variation"
+msgid_plural "%d variations"
+msgstr[0] "%d variation"
+msgstr[1] "%d variations"
+
+msgid "%d visible"
+msgid_plural "%d visible"
+msgstr[0] "%d visibles"
+msgstr[1] "%d visibles"
+
+msgid "%pages pages selected · about %min min"
+msgstr "%pages pages sélectionnées · environ %min min"
+
+msgid "%s item"
+msgid_plural "%s items"
+msgstr[0] "%s contenu"
+msgstr[1] "%s contenus"
+
+msgid "%s translation reset. The page cache of every language was cleared."
+msgstr "Traduction %s réinitialisée. Le cache des pages a été vidé dans toutes les langues."
+
+msgid "%s translation saved."
+msgstr "Traduction %s enregistrée."
+
+msgid "%s: the original was edited, check the translation"
+msgstr "%s : l’original a changé, vérifiez la traduction"
+
+msgid "(attribute values)"
+msgstr "(valeurs des attributs)"
+
+msgid "(copy it and send it when something does not work)"
+msgstr "(à copier et transmettre en cas de problème)"
+
+msgid "(hidden until opened: menu, tab, accordion or popup)"
+msgstr "(masqué tant que le menu, l’onglet, l’accordéon ou la fenêtre ne sont pas ouverts)"
+
+msgid "(who your visitors are, tone, words never to translate — added to the prompt)"
+msgstr "(public, ton, mots à ne jamais traduire — ajoutés aux consignes)"
+
+msgid "+ %d text shared with WooCommerce or the theme (translated there)"
+msgid_plural "+ %d texts shared with WooCommerce or the theme (translated there)"
+msgstr[0] "+ %d texte partagé avec WooCommerce ou le thème, traduit à cette source"
+msgstr[1] "+ %d textes partagés avec WooCommerce ou le thème, traduits à cette source"
+
+msgid "+ A text of this page is missing? Add it"
+msgstr "+ Un texte manque sur cette page ? Ajoutez-le"
+
+msgid "/fr/, /en/… Translated slug of every item, translated words like product-category."
+msgstr "/fr/, /en/… Adresse de chaque contenu et mots des URL traduisibles, comme product-category."
+
+msgid "1. Download the texts to translate"
+msgstr "1. Télécharger les textes à traduire"
+
+msgid "1. Translate your content"
+msgstr "1. Traduire vos contenus"
+
+msgid "2. Import the translated file"
+msgstr "2. Importer le fichier traduit"
+
+msgid "2. Translate your tools"
+msgstr "2. Traduire vos outils"
+
+msgid "3. Check your site"
+msgstr "3. Vérifier votre site"
+
+msgid "<strong>In a menu</strong> (recommended): <a href=\"%s\">Appearance › Menus</a>, box \"Language selector\" › Add to menu. Then choose a dropdown or a bulleted list in the menu item settings."
+msgstr "<strong>Dans un menu</strong> (recommandé) : <a href=\"%s\">Apparence › Menus</a>, encadré « Sélecteur de langue » › Ajouter au menu. Le style du thème est utilisé automatiquement ; vous pouvez aussi choisir une liste à puces dans les réglages de l’élément."
+
+msgid "A title, button, message…"
+msgstr "Un titre, un bouton, un message…"
+
+msgid "A → Z"
+msgstr "A → Z"
+
+msgid "AJAX, API & JSON"
+msgstr "AJAX, API et JSON"
+
+msgid "About your site"
+msgstr "À propos de votre site"
+
+msgid "Account link"
+msgstr "Lien du compte"
+
+msgid "Account menu"
+msgstr "Menu du compte"
+
+msgid "Active"
+msgstr "Actif"
+
+msgid "Active theme"
+msgstr "Thème actif"
+
+msgid "Add"
+msgstr "Ajouter"
+
+msgid "Add a URL word"
+msgstr "Ajouter un mot d’URL"
+
+msgid "Add a language selector to this menu."
+msgstr "Ajouter un sélecteur de langue à ce menu."
+
+msgid "Add a secondary language in the settings first."
+msgstr "Ajoutez d’abord une langue dans les réglages."
+
+msgid "Add a text"
+msgstr "Ajouter un texte"
+
+msgid "Add a text by hand"
+msgstr "Ajouter un texte manuellement"
+
+msgid "Add hreflang tags (and canonical)"
+msgstr "Ajouter les balises hreflang et canonical"
+
+msgid "Add it on its page with its exact wording: it is replaced on the site."
+msgstr "Ajoutez sa formulation exacte sur sa page : elle sera remplacée sur le site."
+
+msgid "Add to cart"
+msgstr "Ajouter au panier"
+
+msgid "Add to menu"
+msgstr "Ajouter au menu"
+
+msgid "Add your first language"
+msgstr "Ajouter votre première langue"
+
+msgid "Added automatically (canonical left to Yoast / Rank Math when present)."
+msgstr "Ajout automatique ; la balise canonical reste gérée par Yoast ou Rank Math s’il est présent."
+
+msgid "Added by hand"
+msgstr "Ajouté manuellement"
+
+msgid "Added by hand / unknown origin"
+msgstr "Ajout manuel / origine inconnue"
+
+msgid "Address"
+msgstr "Adresse"
+
+msgid "Addresses, delivery, payment and checkout validation."
+msgstr "Adresses, livraison, paiement et validation de la commande."
+
+msgid "Adds a 🐞 menu in the admin bar of every page of the site (administrators only): detected language, URL analysis, translation status of the page (translated / outdated / missing for each field), search matches, page cache, other-language URLs."
+msgstr "Ajoute un menu 🐞 dans la barre d’administration du site : langue détectée, analyse des URL, état des traductions, recherche, cache et adresses dans les autres langues. Réservé aux administrateurs."
+
+msgid "Adds one product to this browser’s shop cart so checkout texts can appear. Remove it from the cart after the check if you do not need it."
+msgstr "Ajoute un produit au panier de cette session pour afficher les textes de commande. Retirez-le du panier après la vérification si vous n’en avez pas besoin."
+
+msgid "Admin lists"
+msgstr "Listes de l’administration"
+
+msgid "Advanced"
+msgstr "Avancé"
+
+msgid "After choosing a language, a visitor who lands on a page of the original language (Back button, old link, e-mail, search result) sees it in his language. Editors are never redirected."
+msgstr "Après avoir choisi une langue, le visiteur la conserve lorsqu’il suit un ancien lien, revient en arrière ou ouvre un e-mail. Les éditeurs ne sont jamais redirigés."
+
+msgid "After reading the site pages: remove untranslated texts that are not shown to visitors. They can be collected again later if a page starts using them."
+msgstr "Après avoir lu les pages du site, supprimez les textes non traduits qui ne sont pas affichés aux visiteurs. Ils pourront être détectés de nouveau si une page les utilise plus tard."
+
+msgid "All"
+msgstr "Tous"
+
+msgid "All blocks"
+msgstr "Tous les blocs"
+
+msgid "All languages"
+msgstr "Toutes les langues"
+
+msgid "All pages of the site…"
+msgstr "Toutes les pages du site…"
+
+msgid "All plugins"
+msgstr "Toutes les extensions"
+
+msgid "All sources"
+msgstr "Toutes les sources"
+
+msgid "All theme areas"
+msgstr "Toutes les zones du thème"
+
+msgid "An SEO plugin is active: it keeps its canonical, this plugin only adds hreflang."
+msgstr "Une extension SEO est active : elle conserve sa balise canonical ; ce plugin ajoute seulement hreflang."
+
+msgid "Any other visible text (custom form fields, page builder labels…)"
+msgstr "Autres textes visibles : formulaires personnalisés, libellés de constructeurs…"
+
+msgid "Any word of your addresses (e.g. the shop page \"shop\"). Empty the original word to remove a line."
+msgstr "Un mot de vos adresses, par exemple « shop ». Videz le mot original pour retirer une ligne."
+
+msgid "Anywhere else (widget, block, header builder): paste this shortcode"
+msgstr "Ailleurs (widget, bloc ou en-tête) : collez ce code court"
+
+msgid "Appearance"
+msgstr "Apparence"
+
+msgid "Apply"
+msgstr "Appliquer"
+
+msgid "Archives"
+msgstr "Archives"
+
+msgid "As on the page"
+msgstr "Comme sur la page"
+
+msgid "Attributes"
+msgstr "Attributs"
+
+msgid "Available languages"
+msgstr "Langues disponibles"
+
+msgid "Available tools are detected automatically. Only the integrations you use are loaded."
+msgstr "Les outils disponibles sont détectés automatiquement. Seules les intégrations utilisées sont chargées."
+
+msgid "Back to %s"
+msgstr "Revenir à %s"
+
+msgid "Back to the site check"
+msgstr "Retour à la vérification du site"
+
+msgid "Back to the texts"
+msgstr "Retour aux textes"
+
+msgid "Backup restored. %d translation rows were imported."
+msgstr "Sauvegarde restaurée : %d lignes de traduction importées."
+
+msgid "Billing details"
+msgstr "Informations de facturation"
+
+msgid "Block"
+msgstr "Bloc"
+
+msgid "Block shown on this page: %s"
+msgstr "Bloc affiché sur cette page : %s"
+
+msgid "Blocks & layouts"
+msgstr "Blocs et mises en page"
+
+msgid "Blocks of a page: translated in the page itself (Language panel). Synced patterns are translated once, in the pattern, and everywhere they are used."
+msgstr "Les blocs se traduisent dans la page, via le panneau Langue. Les compositions synchronisées se traduisent une seule fois et sont réutilisées partout."
+
+msgid "Blog"
+msgstr "Blog"
+
+msgid "Blog posts"
+msgstr "Articles du blog"
+
+msgid "Body texts (greeting, \"Thanks for your order\", table labels, totals, footer): translate them in <a href=\"%1$s\">Shop texts</a>. Use the button below to find them."
+msgstr "Textes du corps (salutation, « Merci pour votre commande », libellés du tableau, totaux, pied de page) : traduisez-les dans les <a href=\"%1$s\">textes de la boutique</a>. Utilisez le bouton ci-dessous pour les trouver."
+
+msgid "Boxed dropdown"
+msgstr "Liste déroulante encadrée"
+
+msgid "Breadcrumb"
+msgstr "Fil d’Ariane"
+
+msgid "Browse by source"
+msgstr "Parcourir par origine"
+
+msgid "Browse texts by page"
+msgstr "Parcourir les textes par page"
+
+msgid "Built from the translated product title + attribute values."
+msgstr "Construit à partir du nom traduit du produit et des valeurs d’attributs."
+
+msgid "Bulk actions"
+msgstr "Actions groupées"
+
+msgid "Bulleted language list"
+msgstr "Liste de langues à puces"
+
+msgid "Bulleted list (for a footer):"
+msgstr "Liste à puces (pour un pied de page) :"
+
+msgid "Bundle item %d – description"
+msgstr "Élément du lot %d — description"
+
+msgid "Bundle item %d – title"
+msgstr "Élément du lot %d — titre"
+
+msgid "Buttons, cart, checkout, account, notices and messages written by WooCommerce."
+msgstr "Boutons, panier, paiement, compte, notifications et messages WooCommerce."
+
+msgid "By plugin"
+msgstr "Par extension"
+
+msgid "By source"
+msgstr "Par source"
+
+msgid "Cart"
+msgstr "Panier"
+
+msgid "Cart & mini-cart"
+msgstr "Panier et mini-panier"
+
+msgid "Cart contents, coupons, totals and empty cart."
+msgstr "Contenu du panier, codes promo, totaux et panier vide."
+
+msgid "Cart totals"
+msgstr "Totaux du panier"
+
+msgid "Categories & attributes"
+msgstr "Catégories et attributs"
+
+msgid "Categories, tags, attribute values"
+msgstr "Catégories, étiquettes et valeurs d’attributs"
+
+msgid "Category or tag · %s"
+msgstr "Catégorie ou étiquette · %s"
+
+msgid "Category or tag · origin not confirmed"
+msgstr "Catégorie ou étiquette · origine non confirmée"
+
+msgid "Change language"
+msgstr "Changer de langue"
+
+msgid "Changing the original language after translating makes existing translations belong to the wrong language."
+msgstr "Modifier la langue originale après avoir traduit peut associer les traductions existantes à une mauvaise langue."
+
+msgid "Check results"
+msgstr "Résultats de la vérification"
+
+msgid "Check the site"
+msgstr "Vérifier le site"
+
+msgid "Check the site first to collect texts specific to your pages."
+msgstr "Vérifiez d’abord le site pour détecter les textes propres à vos pages."
+
+msgid "Check the site to find texts that are specific to your public pages. Standard WooCommerce and plugin texts are available by source."
+msgstr "Vérifiez le site pour repérer les textes propres à vos pages publiques. Les textes standards de WooCommerce et des extensions sont classés par origine."
+
+msgid "Checkout"
+msgstr "Commande"
+
+msgid "Checkout & payment"
+msgstr "Commande et paiement"
+
+msgid "Checkout (place order)"
+msgstr "Paiement (commande)"
+
+msgid "Checkout (refresh)"
+msgstr "Paiement (actualisation)"
+
+msgid "Choose WordPress, WooCommerce, the theme or a plugin to see its texts and translation progress."
+msgstr "Choisissez WordPress, WooCommerce, le thème ou une extension pour voir ses textes et sa progression."
+
+msgid "Choose a full backup file to restore translations and settings. Existing translations with the same text key will be replaced."
+msgstr "Choisissez une sauvegarde complète pour restaurer les traductions et les réglages. Les traductions existantes ayant la même clé seront remplacées."
+
+msgid "Choose a language, translate your content, then check the result on your site."
+msgstr "Choisissez une langue, traduisez vos contenus, puis vérifiez le résultat sur votre site."
+
+msgid "Choose a source below to translate its texts. Check the site when you want to find the wording specific to your own pages."
+msgstr "Choisissez une source ci-dessous pour traduire ses textes. Vérifiez le site pour découvrir les formulations propres à vos pages."
+
+msgid "Choose a text and add a translation language first."
+msgstr "Choisissez un texte et ajoutez d’abord une langue de traduction."
+
+msgid "Choose a valid backup file."
+msgstr "Choisissez un fichier de sauvegarde valide."
+
+msgid "Choose an item from this source to translate it. Select several items for a bulk action."
+msgstr "Choisissez un élément de cette source pour le traduire. Sélectionnez plusieurs éléments pour une action groupée."
+
+msgid "Choose at least one translation language in <a href=\"%s\">Settings</a> before checking the site."
+msgstr "Choisissez au moins une langue de traduction dans les <a href=\"%s\">réglages</a> avant de vérifier le site."
+
+msgid "Choose at least one type of content to export."
+msgstr "Choisissez au moins un type de contenu à exporter."
+
+msgid "Choose languages"
+msgstr "Choisir les langues"
+
+msgid "Choose what to check"
+msgstr "Choisir les pages à vérifier"
+
+msgid "Choose where a text comes from, then filter by its place or function."
+msgstr "Choisissez la source du texte, puis filtrez par emplacement ou fonction."
+
+msgid "Clean up"
+msgstr "Nettoyer"
+
+msgid "Clear the page cache (all languages)"
+msgstr "Vider le cache des pages dans toutes les langues"
+
+msgid "Clears the cached progress figures."
+msgstr "Actualise les chiffres de progression enregistrés en cache."
+
+msgid "Click to review and translate"
+msgstr "Cliquer pour vérifier et traduire"
+
+msgid "Close"
+msgstr "Fermer"
+
+msgid "Comma , (Google Sheets, Excel EN)"
+msgstr "Virgule , (Google Sheets, Excel anglais)"
+
+msgid "Compare each public page in the original language and your translations. See which visible texts still need translation, then open the right translation directly."
+msgstr "Comparez chaque page publique dans la langue d’origine et dans ses traductions. Repérez les textes visibles à traduire, puis ouvrez directement leur traduction."
+
+msgid "Comparing with the original page…"
+msgstr "Comparaison avec la page originale…"
+
+msgid "Confirm that you want to restore this backup."
+msgstr "Confirmez que vous voulez restaurer cette sauvegarde."
+
+msgid "Confirmation, order details and tracking."
+msgstr "Confirmation, détails et suivi des commandes."
+
+msgid "Contact information"
+msgstr "Coordonnées"
+
+msgid "Content"
+msgstr "Contenus"
+
+msgid "Content shown on this page"
+msgstr "Contenus affichés sur cette page"
+
+msgid "Content type"
+msgstr "Type de contenu"
+
+msgid "Content type not identified"
+msgstr "Type de contenu non identifié"
+
+msgid "Content · origin not confirmed"
+msgstr "Contenu · origine non confirmée"
+
+msgid "Continue check"
+msgstr "Reprendre la vérification"
+
+msgid "Continue translating"
+msgstr "Continuer la traduction"
+
+msgid "Cookie banner"
+msgstr "Bannière de cookies"
+
+msgid "Copy"
+msgstr "Copier"
+
+msgid "Copy it exactly as it is displayed in the original language (a form field, a label typed in a page builder, a text shown by a script…). It is translated everywhere it appears."
+msgstr "Recopiez le texte exactement comme il apparaît dans la langue originale : libellé, champ de formulaire ou texte de script. Il sera traduit partout où il apparaît."
+
+msgid "Copy it exactly as it is displayed on the site in the original language."
+msgstr "Recopiez sa formulation exacte dans la langue originale du site."
+
+msgid "Copy the original (names, brands…)"
+msgstr "Copier l’original (noms, marques…)"
+
+msgid "Could not create the full backup."
+msgstr "Impossible de créer la sauvegarde complète."
+
+msgid "Could not read translation data for the backup."
+msgstr "Impossible de lire les traductions pour créer la sauvegarde."
+
+msgid "Could not refresh theme locations. Try again from the same page."
+msgstr "Impossible d’actualiser les emplacements du thème. Réessayez depuis cette page."
+
+msgid "Could not save. Check your connection and try again."
+msgstr "Enregistrement impossible. Vérifiez votre connexion et réessayez."
+
+msgid "Countries & regions"
+msgstr "Pays et régions"
+
+msgid "Coupon"
+msgstr "Code promo"
+
+msgid "Coverage & help"
+msgstr "Aide et fonctionnalités"
+
+msgid "Custom Link"
+msgstr "Lien personnalisé"
+
+msgid "Customer account"
+msgstr "Compte client"
+
+msgid "Customer content (reviews, order notes) and PDF invoices"
+msgstr "Contenus des clients (avis, notes de commande) et factures PDF"
+
+msgid "Customer e-mails"
+msgstr "E-mails aux clients"
+
+msgid "Customer e-mails are written in the language the customer used on the site: the language of the order (saved at checkout), or of the account (saved at registration and login) for account e-mails."
+msgstr "Les e-mails aux clients utilisent la langue de la commande, enregistrée lors du paiement, ou celle du compte, enregistrée à l’inscription et à la connexion."
+
+msgid "Danger zone"
+msgstr "Actions irréversibles"
+
+msgid "Debug"
+msgstr "Diagnostic"
+
+msgid "Debug mode & diagnostic report"
+msgstr "Mode diagnostic et rapport"
+
+msgid "Debug mode off."
+msgstr "Mode diagnostic désactivé."
+
+msgid "Debug mode on: open the site, a 🐞 menu appears in the admin bar."
+msgstr "Mode diagnostic activé : un menu 🐞 apparaît dans la barre d’administration du site."
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Delete ALL translations of this language? This cannot be undone."
+msgstr "Supprimer TOUTES les traductions de cette langue ? Cette action est irréversible."
+
+msgid "Delete all translations of this language"
+msgstr "Supprimer toutes les traductions de cette langue"
+
+msgid "Delete orphan translations"
+msgstr "Supprimer les traductions sans contenu associé"
+
+msgid "Delete the %s translation of this page? The original is not touched."
+msgstr "Supprimer la traduction %s de cette page ? L’original reste intact."
+
+msgid "Delete the selected texts and their translations? They come back if a page shows them again: to keep a text untranslated for good, use “Don’t translate”."
+msgstr "Supprimer les textes sélectionnés et leurs traductions ? Ils seront retrouvés s’ils réapparaissent sur une page. Pour les ignorer durablement, choisissez « Ne pas traduire »."
+
+msgid "Delete the translations"
+msgstr "Supprimer les traductions"
+
+msgid "Delete the translations of the ticked lines?"
+msgstr "Supprimer les traductions des lignes cochées ?"
+
+msgid "Delete this translation? The original is not touched. This cannot be undone."
+msgstr "Supprimer cette traduction ? L’original reste intact. Cette action est irréversible."
+
+msgid "Delete translations of deleted content?"
+msgstr "Supprimer les traductions dont le contenu a été supprimé ?"
+
+msgid "Deletes the stored translation (text, title, slug) and starts again from the original. Useful when a translated page shows old content or old links."
+msgstr "Retire la traduction enregistrée (texte, titre et adresse) pour repartir de l’original. Utile si une traduction affiche d’anciens contenus ou liens."
+
+msgid "Description"
+msgstr "Description"
+
+msgid "Detected and active. Custom component titles and descriptions are included with their parent product translations."
+msgstr "Extension détectée et active. Les titres et descriptions personnalisés des éléments sont inclus dans la traduction du produit parent."
+
+msgid "Diagnostic report"
+msgstr "Rapport de diagnostic"
+
+msgid "Display options are configured under Light translations."
+msgstr "Le style suit votre thème par défaut ; les autres options se règlent dans les paramètres de l’élément du menu."
+
+msgid "Done. Showing the result…"
+msgstr "Terminé. Affichage des résultats…"
+
+msgid "Done: %d new texts found. Reloading…"
+msgstr "Terminé : %d nouveaux textes trouvés. Actualisation…"
+
+msgid "Don’t translate"
+msgstr "Ne pas traduire"
+
+msgid "Download CSV"
+msgstr "Télécharger le CSV"
+
+msgid "Download everything left to translate in “%s”"
+msgstr "Télécharger les textes restant à traduire dans « %s »"
+
+msgid "Download full backup (.json)"
+msgstr "Télécharger la sauvegarde complète (.json)"
+
+msgid "Download the full backup and confirm before resetting the plugin."
+msgstr "Téléchargez la sauvegarde complète et confirmez avant de réinitialiser le plugin."
+
+msgid "Download the raw translation table (CSV)"
+msgstr "Télécharger la table brute des traductions (CSV)"
+
+msgid "E-mail"
+msgstr "E-mail"
+
+msgid "E-mails"
+msgstr "E-mails"
+
+msgid "E-mails added by other plugins through WooCommerce (bundles, wishlist, back-in-stock…) appear in the list below too."
+msgstr "Les e-mails ajoutés à WooCommerce par d’autres extensions apparaissent également ci-dessous : lots, listes d’envies, retour en stock…"
+
+msgid "E-mails sent to the shop (New order, Cancelled, Failed…) stay in the original language, for you."
+msgstr "Les e-mails destinés à la boutique (nouvelle commande, annulation, échec…) restent dans la langue originale."
+
+msgid "Edit"
+msgstr "Modifier"
+
+msgid "Edit original"
+msgstr "Modifier l’original"
+
+msgid "Edit the original"
+msgstr "Modifier l’original"
+
+msgid "Editing the %s translation directly in the page."
+msgstr "Vous modifiez la traduction %s directement dans la page."
+
+msgid "Elementor stores its content outside the page text: not translated."
+msgstr "Elementor stocke ses contenus séparément : ils ne sont pas traduits."
+
+msgid "Elsewhere"
+msgstr "Ailleurs"
+
+msgid "Empty cells are ignored."
+msgstr "Les cellules vides sont ignorées."
+
+msgid "Enabled: their texts are now in the list."
+msgstr "Activés : leurs textes sont maintenant dans la liste."
+
+msgid "Every page (header, footer, menus, mini-cart)"
+msgstr "Toutes les pages (en-tête, pied de page, menus, mini-panier)"
+
+msgid "Everything (including texts already translated)"
+msgstr "Tout, y compris les textes déjà traduits"
+
+msgid "Everything here is translated. 🎉"
+msgstr "Tout est traduit ici. 🎉"
+
+msgid "Everything is translated here."
+msgstr "Tout est traduit ici."
+
+msgid "Everything selected is already checked. Start a new check to replace these results."
+msgstr "Tout ce qui est sélectionné a déjà été vérifié. Lancez une nouvelle vérification pour remplacer les résultats."
+
+msgid "Everywhere (header, footer, menus)"
+msgstr "Partout (en-tête, pied de page, menus)"
+
+msgid "Example: /fr/product-category/gloves/ → /fr/categorie-produit/gants/ (the last word is the translated slug of the item itself). Leave empty to keep the original word. Only lowercase letters, numbers and hyphens."
+msgstr "Exemple : /fr/product-category/gloves/ → /fr/categorie-produit/gants/. Le dernier mot se traduit sur le contenu lui-même. Laissez vide pour conserver le mot original. Lettres minuscules, chiffres et tirets uniquement."
+
+msgid "Excerpt"
+msgstr "Extrait"
+
+msgid "Export"
+msgstr "Exporter"
+
+msgid "Export for AI translation (file)"
+msgstr "Exporter pour une traduction par IA"
+
+msgid "Export the untranslated ones (CSV)"
+msgstr "Exporter les textes non traduits (CSV)"
+
+msgid "Export what is missing, translate the CSV, import it back."
+msgstr "Exportez les textes manquants, traduisez le CSV, puis réimportez-le."
+
+msgid "Fill empty translations with the original"
+msgstr "Remplir les traductions vides avec l’original"
+
+msgid "Filter"
+msgstr "Filtrer"
+
+msgid "Filter pages and texts…"
+msgstr "Filtrer les pages et les textes…"
+
+msgid "Filter results"
+msgstr "Filtrer les résultats"
+
+msgid "Find WooCommerce e-mail texts"
+msgstr "Rechercher les textes des e-mails WooCommerce"
+
+msgid "Find a text"
+msgstr "Rechercher un texte"
+
+msgid "Find a text…"
+msgstr "Rechercher un texte…"
+
+msgid "Find and translate the texts shown on your public pages."
+msgstr "Repérez et traduisez les textes affichés sur les pages publiques."
+
+msgid "Find any text"
+msgstr "Retrouver n’importe quel texte"
+
+msgid "Find each plugin with its own texts. Existing translations stay available when a tool is deactivated."
+msgstr "Retrouvez les textes de chaque extension. Les traductions restent disponibles lorsqu’un outil est désactivé."
+
+msgid "Find texts in an installed plugin"
+msgstr "Rechercher les textes d’une extension installée"
+
+msgid "Find the text you want to translate"
+msgstr "Retrouvez le texte à traduire"
+
+msgid "Find their theme areas"
+msgstr "Trouver leur zone dans le thème"
+
+msgid "Find them"
+msgstr "Les rechercher"
+
+msgid "Footer"
+msgstr "Pied de page"
+
+msgid "Form"
+msgstr "Formulaire"
+
+msgid "Found"
+msgstr "Résultat"
+
+msgid "Found on"
+msgstr "Repéré sur"
+
+msgid "Full backup and plugin reset"
+msgstr "Sauvegarde complète et réinitialisation du plugin"
+
+msgid "Give the CSV to the AI with this message, then import the file it returns."
+msgstr "Donnez le CSV à l’IA avec ces consignes, puis importez le fichier retourné."
+
+msgid "Gutenberg blocks, synced patterns (reusable blocks)"
+msgstr "Blocs Gutenberg et compositions synchronisées"
+
+msgid "HTML blocks"
+msgstr "Blocs HTML"
+
+msgid "Header"
+msgstr "En-tête"
+
+msgid "Header & navigation"
+msgstr "En-tête et navigation"
+
+msgid "Header, footer and menu texts are in <a href=\"%1$s\">Every page</a>. The content of the page itself is translated in <a href=\"%2$s\">Pages &amp; products</a>."
+msgstr "Les textes d’en-tête, de pied de page et de menu se trouvent dans <a href=\"%1$s\">Toutes les pages</a>. Le contenu de la page se traduit dans <a href=\"%2$s\">Pages et produits</a>."
+
+msgid "Hidden language while you translate it"
+msgstr "Masquer une langue pendant sa traduction"
+
+msgid "Hidden – in preparation (editors only)"
+msgstr "Masquée — en préparation, réservée aux éditeurs"
+
+msgid "Highlight remaining texts in red and open their translation directly."
+msgstr "Repérez les textes restants en rouge et accédez directement à leur traduction."
+
+msgid "Highlight untranslated texts"
+msgstr "Repérer les textes non traduits"
+
+msgid "Home page"
+msgstr "Page d’accueil"
+
+msgid "Home page: its address stays %s, without slug."
+msgstr "Page d’accueil : son adresse reste %s, sans mot supplémentaire."
+
+msgid "Home, shop, cart, checkout and account pages"
+msgstr "Accueil, boutique, panier, commande et compte"
+
+msgid "How e-mails are translated"
+msgstr "Fonctionnement des traductions d’e-mails"
+
+msgid "I downloaded the backup and want to remove the plugin data and deactivate the plugin."
+msgstr "J’ai téléchargé la sauvegarde et je veux supprimer les données du plugin et le désactiver."
+
+msgid "I understand that matching translations and plugin settings may be replaced."
+msgstr "Je comprends que les traductions correspondantes et les réglages du plugin peuvent être remplacés."
+
+msgid "ISO code (FR, EN)"
+msgstr "Code ISO (FR, EN)"
+
+msgid "If a /fr/… page shows a 404 after changing languages or URL words."
+msgstr "Si une page /fr/… affiche une erreur 404 après modification des langues ou des adresses."
+
+msgid "If a translated page (/fr/…) still shows old content or old links: clears LiteSpeed / Hostinger, WP Rocket, W3 Total Cache or WP Super Cache. Done automatically for a page when it or its translation is saved."
+msgstr "Si une traduction affiche un ancien contenu ou d’anciens liens, vide le cache LiteSpeed, WP Rocket, W3 Total Cache ou WP Super Cache. Cette action est déjà automatique lors de l’enregistrement d’une page ou de sa traduction."
+
+msgid "Ignore empty translations"
+msgstr "Ignorer les traductions vides"
+
+msgid "Import"
+msgstr "Importer"
+
+msgid "Import / Export"
+msgstr "Import / Export"
+
+msgid "Import CSV"
+msgstr "Importer un CSV"
+
+msgid "Import the file"
+msgstr "Importer le fichier"
+
+msgid "Import:"
+msgstr "Import :"
+
+msgid "In the admin bar of any page: translate this page / product / category, or the texts displayed by this page (buttons, messages, widgets, site texts)."
+msgstr "Dans la barre d’administration du site, traduisez la page, le produit, la catégorie ou les textes affichés : boutons, messages, widgets et réglages."
+
+msgid "In the language of the order / account. Subject, heading, additional content, body texts, product names."
+msgstr "Dans la langue de la commande ou du compte : objet, en-tête, complément, corps et noms des produits."
+
+msgid "Include URL slugs"
+msgstr "Inclure les mots des URL"
+
+msgid "Include the original language"
+msgstr "Inclure la langue originale"
+
+msgid "Integrations"
+msgstr "Intégrations"
+
+msgid "Interface strings & e-mails"
+msgstr "Textes de l’interface et e-mails"
+
+msgid "Interface text"
+msgstr "Texte de l’interface"
+
+msgid "Interface text · %s"
+msgstr "Texte d’interface · %s"
+
+msgid "Interface texts"
+msgstr "Textes d’interface"
+
+msgid "Interface texts & e-mails"
+msgstr "Textes de l’interface et e-mails"
+
+msgid "Interface texts present in WooCommerce frontend scripts."
+msgstr "Textes d’interface présents dans les scripts publics de WooCommerce."
+
+msgid "Invalid CSV header: columns language_code, object_type, object_id, field_key and translated_text are required."
+msgstr "En-tête CSV invalide : les colonnes language_code, object_type, object_id, field_key et translated_text sont obligatoires."
+
+msgid "Invalid backup upload."
+msgstr "Le fichier de sauvegarde envoyé est invalide."
+
+msgid "Invalid import."
+msgstr "Import invalide."
+
+msgid "Invalid language."
+msgstr "Langue invalide."
+
+msgid "Invalid translation language."
+msgstr "Langue de traduction invalide."
+
+msgid "Invalid upload."
+msgstr "Fichier envoyé invalide."
+
+msgid "Irreversible. Download a backup first (Import / Export › Backup)."
+msgstr "Action irréversible. Téléchargez d’abord une sauvegarde dans Import / Export › Sauvegarde."
+
+msgid "JavaScript & blocks"
+msgstr "JavaScript et blocs"
+
+msgid "Keep placeholders like %s, %1$s or {name} unchanged. Empty = the original text is shown."
+msgstr "Conservez les éléments comme %s, %1$s ou {name}. Un champ vide affiche l’original."
+
+msgid "Keep the placeholders like {order_number}, {site_title}, {order_date} as they are. Empty = original text."
+msgstr "Conservez les éléments comme {order_number}, {site_title} et {order_date}. Un champ vide affiche l’original."
+
+msgid "Keep the selected texts in the original language? Their translation is removed and they leave the lists."
+msgstr "Conserver les textes sélectionnés dans la langue originale ? Leurs traductions seront retirées et ils quitteront les listes."
+
+msgid "Keep visitors in the language they chose"
+msgstr "Conserver la langue choisie par le visiteur"
+
+msgid "Language"
+msgstr "Langue"
+
+msgid "Language / Translation"
+msgstr "Langue / Traduction"
+
+msgid "Language URLs refreshed."
+msgstr "Adresses des langues actualisées."
+
+msgid "Language URLs, translated slugs and URL words"
+msgstr "Adresses des langues et mots traduits des URL"
+
+msgid "Language options"
+msgstr "Options des langues"
+
+msgid "Language selector"
+msgstr "Sélecteur de langue"
+
+msgid "Language selector added."
+msgstr "Sélecteur de langue ajouté."
+
+msgid "Language selector added. Reloading…"
+msgstr "Sélecteur de langue ajouté. Actualisation…"
+
+msgid "Language selector appearance"
+msgstr "Apparence du sélecteur de langue"
+
+msgid "Language switcher"
+msgstr "Sélecteur de langue"
+
+msgid "Language switcher & first-visit redirection"
+msgstr "Sélecteur de langue et redirection à la première visite"
+
+msgid "Languages"
+msgstr "Langues"
+
+msgid "Layouts & blocks"
+msgstr "Mises en page et blocs"
+
+msgid "Like pages (content)."
+msgstr "Comme pour les pages."
+
+msgid "Links to a page, product or category follow its translation automatically. Custom labels: CSV export \"Menu links\"."
+msgstr "Les liens vers les pages, produits et catégories suivent automatiquement leur traduction. Les libellés personnalisés se traduisent dans l’export « Liens de menu »."
+
+msgid "Listing the pages…"
+msgstr "Préparation de la liste des pages…"
+
+msgid "Lists in advance the texts a plugin can show to visitors (including rare error messages). Admin screens are ignored. Nothing is modified."
+msgstr "Propose à l’avance les textes publics d’une extension, y compris les messages d’erreur peu fréquents. Les écrans d’administration sont exclus et aucun contenu n’est modifié."
+
+msgid "Loading progress…"
+msgstr "Chargement de la progression…"
+
+msgid "Loading…"
+msgstr "Chargement…"
+
+msgid "Login form"
+msgstr "Formulaire de connexion"
+
+msgid "Main content"
+msgstr "Contenu principal"
+
+msgid "Maintenance"
+msgstr "Maintenance"
+
+msgid "Manual"
+msgstr "Manuel"
+
+msgid "Mark edited originals as still correct"
+msgstr "Confirmer les traductions dont l’original a changé"
+
+msgid "Match the active theme (recommended)"
+msgstr "Suivre le thème actif (recommandé)"
+
+msgid "Menu"
+msgstr "Menu"
+
+msgid "Menu item or shortcode; redirection by browser language, cache-proof."
+msgstr "Élément de menu ou code court ; redirection selon la langue du navigateur, compatible avec le cache."
+
+msgid "Menu links"
+msgstr "Liens de menu"
+
+msgid "Menus"
+msgstr "Menus"
+
+msgid "Message after an action"
+msgstr "Message après une action"
+
+msgid "Messages (add to cart, forms, errors…)"
+msgstr "Messages : panier, formulaires, erreurs…"
+
+msgid "Messages sent to customers; these are not all displayed on the website."
+msgstr "Messages envoyés aux clients ; ils ne sont pas tous affichés sur le site."
+
+msgid "Mini cart"
+msgstr "Mini-panier"
+
+msgid "Mobile menu"
+msgstr "Menu mobile"
+
+msgid "More filters"
+msgstr "Plus de filtres"
+
+msgid "My account"
+msgstr "Mon compte"
+
+msgid "Name"
+msgstr "Nom"
+
+msgid "Name format"
+msgstr "Format du nom"
+
+msgid "Name shown to visitors"
+msgstr "Nom affiché aux visiteurs"
+
+msgid "Name, slug, description: \"Language\" selector at the top of the category form (also when creating), or everything in one table."
+msgstr "Nom, adresse et description : utilisez le sélecteur de langue du formulaire de catégorie, ou le tableau de traduction."
+
+msgid "Native name (Français, English)"
+msgstr "Nom natif (Français, English)"
+
+msgid "New or changed paragraph"
+msgstr "Paragraphe nouveau ou modifié"
+
+msgid "No identical text detected on this page."
+msgstr "Aucun texte identique détecté sur cette page."
+
+msgid "No identical text was detected on the pages checked."
+msgstr "Aucun texte identique détecté sur les pages vérifiées."
+
+msgid "No interface text found."
+msgstr "Aucun texte d’interface trouvé."
+
+msgid "No items found."
+msgstr "Aucun contenu trouvé."
+
+msgid "No other plugin texts have been collected yet. Use “Find texts in an installed plugin” to detect them."
+msgstr "Aucun texte d’autre extension n’a encore été collecté. Utilisez « Rechercher les textes d’une extension installée » pour les détecter."
+
+msgid "No page texts collected yet"
+msgstr "Aucun texte de page détecté"
+
+msgid "No text yet. Go to <a href=\"%s\">Add texts</a> to scan your plugins, theme options and widgets."
+msgstr "Aucun texte pour le moment. Utilisez <a href=\"%s\">Ajouter des textes</a> pour rechercher les textes des extensions, réglages et widgets."
+
+msgid "No text yet. Use <a href=\"%s\">Scan the site</a> or open the pages of your site while logged in."
+msgstr "Aucun texte pour le moment. <a href=\"%s\">Vérifiez le site</a> ou parcourez ses pages en étant connecté."
+
+msgid "No translation yet."
+msgstr "Aucune traduction pour le moment."
+
+msgid "Not in the switcher nor in Google; editors can preview it at /xx/."
+msgstr "Absente du sélecteur et de Google ; les éditeurs peuvent prévisualiser /xx/."
+
+msgid "Not included"
+msgstr "Non inclus"
+
+msgid "Not included: e-mails that do not go through WooCommerce (contact forms, WordPress notifications), content made with an e-mail builder plugin (YayMail, Kadence, etc.), PDF invoices, orders placed before this version (no language saved: original language)."
+msgstr "Non inclus : e-mails hors WooCommerce (formulaires, notifications WordPress), contenus des constructeurs d’e-mails, factures PDF et commandes sans langue enregistrée."
+
+msgid "Not located yet (open the page again to place them)"
+msgstr "Emplacement encore inconnu : ouvrez de nouveau la page"
+
+msgid "Not located yet (read the page again)"
+msgstr "Emplacement encore inconnu : vérifiez de nouveau la page"
+
+msgid "Not read yet: open it once (or “Read all pages”)"
+msgstr "Page pas encore vérifiée : ouvrez-la ou vérifiez le site"
+
+msgid "Not the right result?"
+msgstr "Vous ne trouvez pas le bon résultat ?"
+
+msgid "Not translated on purpose"
+msgstr "Conservé volontairement dans la langue originale"
+
+msgid "Not translated yet: the original text was copied, type over it."
+msgstr "Pas encore traduit : le texte original a été copié. Remplacez-le par votre traduction."
+
+msgid "Not visible on the page (hidden, or shown in some cases only)"
+msgstr "Masqué sur la page ou affiché seulement dans certains cas"
+
+msgid "Nothing done."
+msgstr "Aucune modification."
+
+msgid "Nothing found in the content."
+msgstr "Aucun résultat dans les contenus."
+
+msgid "Nothing here."
+msgstr "Aucun contenu ici."
+
+msgid "Nothing to translate here."
+msgstr "Rien à traduire ici."
+
+msgid "Nothing to translate yet."
+msgstr "Aucun contenu à traduire pour le moment."
+
+msgid "Notice"
+msgstr "Notification"
+
+msgid "Older or additional texts without a confirmed customer use. Kept with their translations."
+msgstr "Textes anciens ou complémentaires dont l’usage côté client reste à confirmer. Leurs traductions sont conservées."
+
+msgid "On /fr/, the search also looks in the translated titles, contents and descriptions."
+msgstr "Sous /fr/, la recherche porte également sur les titres, contenus et descriptions traduits."
+
+msgid "On almost every page (header, footer, menus, mini-cart)"
+msgstr "Sur presque toutes les pages : en-tête, pied de page, menus, mini-panier"
+
+msgid "On your pages"
+msgstr "Sur vos pages"
+
+msgid "One flag per language: green translated, orange outdated, red missing. Click to translate."
+msgstr "Un drapeau par langue : vert pour traduit, orange pour à vérifier, rouge pour manquant. Cliquez pour traduire."
+
+msgid "One search in pages, products, categories, menus, interface texts and e-mails, in every language."
+msgstr "Une recherche dans les pages, produits, catégories, menus, textes d’interface et e-mails, dans toutes les langues."
+
+msgid "Only on the first visit; afterwards the language they choose is remembered."
+msgstr "Uniquement à la première visite ; le choix du visiteur est ensuite mémorisé."
+
+msgid "Only the options the theme declares translatable are included. Tip: put other texts in an HTML block or a widget."
+msgstr "Seules les options déclarées traduisibles par le thème sont incluses. Pour les autres textes, utilisez un bloc HTML ou un widget."
+
+msgid "Only untranslated or outdated"
+msgstr "Non traduits ou à vérifier uniquement"
+
+msgid "Only what needs translating (missing + outdated)"
+msgstr "Uniquement ce qui reste à traduire ou à vérifier"
+
+msgid "Open %s with debug"
+msgstr "Ouvrir %s avec le diagnostic"
+
+msgid "Open it once (or use “Read this page” in the panel) to also count the blocks and texts shown inside."
+msgstr "Ouvrez ou vérifiez cette page pour inclure les blocs et textes qu’elle affiche."
+
+msgid "Open products"
+msgstr "Ouvrir les produits"
+
+msgid "Open the page"
+msgstr "Ouvrir la page"
+
+msgid "Open the page where you see the text (logged in): it then appears in <a href=\"%s\">Interface texts</a>, and 🌐 Translate in the admin bar takes you straight to it."
+msgstr "Ouvrez la page où le texte apparaît en étant connecté : il sera ensuite visible dans <a href=\"%s\">Textes d’interface</a>. Le menu 🌐 Traduire de la barre d’administration y mène directement."
+
+msgid "Open the page › \"Language / Translation\" panel › choose a language › click the text and type › \"Save translation\". Title, content, excerpt, URL slug."
+msgstr "Ouvrez la page, choisissez une langue dans le panneau Langue / Traduction, modifiez les textes, puis enregistrez la traduction. Titre, contenu, extrait et adresse sont disponibles."
+
+msgid "Optional. Leave empty to keep the original slug."
+msgstr "Facultatif. Laissez vide pour conserver l’adresse originale."
+
+msgid "Options your theme and plugins declare translatable in their wpml-config.xml (copyright, cookie notice…), payment methods (title, description, instructions), shipping methods, checkout privacy / terms texts, store notice, site title: read automatically, under WooCommerce › Shop settings and Theme › Theme options."
+msgstr "Les réglages déclarés traduisibles par le thème et les extensions sont découverts automatiquement : droits d’auteur, cookies, paiement, livraison, conditions, titre du site. Retrouvez-les dans les intégrations correspondantes."
+
+msgid "Or tick lines below and choose “Export for AI translation” in the bulk actions. One row per text: fill the “translated_text” column."
+msgstr "Vous pouvez aussi cocher des lignes et choisir « Exporter pour une traduction par IA ». Remplissez la colonne translated_text, une ligne par texte."
+
+msgid "Order"
+msgstr "Ordre"
+
+msgid "Order details"
+msgstr "Détails de la commande"
+
+msgid "Order notes"
+msgstr "Notes de commande"
+
+msgid "Order payment"
+msgstr "Paiement de la commande"
+
+msgid "Order received (thank you page)"
+msgstr "Confirmation de commande"
+
+msgid "Order summary"
+msgstr "Récapitulatif de commande"
+
+msgid "Orders & tracking"
+msgstr "Commandes et suivi"
+
+msgid "Origin not identified"
+msgstr "Origine non identifiée"
+
+msgid "Original"
+msgstr "Original"
+
+msgid "Original language"
+msgstr "Langue originale"
+
+msgid "Original word"
+msgstr "Mot original"
+
+msgid "Other codes (comma separated):"
+msgstr "Autres codes, séparés par des virgules :"
+
+msgid "Other collected texts"
+msgstr "Autres textes collectés"
+
+msgid "Other content"
+msgstr "Autres contenus"
+
+msgid "Other pages"
+msgstr "Autres pages"
+
+msgid "Other plugins"
+msgstr "Autres extensions"
+
+msgid "Other texts on this page (buttons, forms, messages…)"
+msgstr "Autres textes de cette page : boutons, formulaires, messages…"
+
+msgid "Other theme options (header builder texts…)"
+msgstr "Autres options du thème : textes d’en-tête…"
+
+msgid "Other theme texts"
+msgstr "Autres textes du thème"
+
+msgid "Otherwise the code is shown (FR, EN…)."
+msgstr "Sinon, le code de langue est affiché : FR, EN…"
+
+msgid "Overview"
+msgstr "Vue générale"
+
+msgid "Page cache cleared (all languages)."
+msgstr "Cache des pages vidé dans toutes les langues."
+
+msgid "Page not found (404)"
+msgstr "Page introuvable (404)"
+
+msgid "Page: %s"
+msgstr "Page : %s"
+
+msgid "Pages"
+msgstr "Pages"
+
+msgid "Pages & posts"
+msgstr "Pages et articles"
+
+msgid "Pages & posts (block editor)"
+msgstr "Pages et articles dans l’éditeur de blocs"
+
+msgid "Pages (home, shop, cart, checkout, My account…)"
+msgstr "Pages : accueil, boutique, panier, paiement, compte…"
+
+msgid "Pages built with Elementor"
+msgstr "Pages créées avec Elementor"
+
+msgid "Pages built with the classic editor or WPBakery"
+msgstr "Pages de l’éditeur classique ou de WPBakery"
+
+msgid "Pages, posts, menus and the content of your integrations."
+msgstr "Pages, articles, menus et contenus de vos intégrations."
+
+msgid "Pages, products, categories & menus"
+msgstr "Pages, produits, catégories et menus"
+
+msgid "Pagination"
+msgstr "Pagination"
+
+msgid "Partial"
+msgstr "Partielle"
+
+msgid "Patterns"
+msgstr "Compositions"
+
+msgid "Payment"
+msgstr "Paiement"
+
+msgid "Performance: only translated texts are loaded on the site, from a cache (no database query on most pages). Untranslated or ignored texts cost nothing."
+msgstr "Seuls les textes traduits de l’interface sont chargés dans un dictionnaire mis en cache."
+
+msgid "Place order"
+msgstr "Commander"
+
+msgid "Plain dropdown"
+msgstr "Liste déroulante simple"
+
+msgid "Plain dropdown:"
+msgstr "Liste déroulante simple :"
+
+msgid "Plugin"
+msgstr "Extension"
+
+msgid "Plugin sections"
+msgstr "Sections de l’extension"
+
+msgid "Plugins"
+msgstr "Extensions"
+
+msgid "Plugins and themes translated"
+msgstr "Extensions et thèmes traduits"
+
+msgid "Popups & banners"
+msgstr "Fenêtres et bannières"
+
+msgid "Possible content type: %s"
+msgstr "Type de contenu probable : %s"
+
+msgid "Post categories"
+msgstr "Catégories d’articles"
+
+msgid "Post not found."
+msgstr "Contenu introuvable."
+
+msgid "Post tags"
+msgstr "Étiquettes d’articles"
+
+msgid "Posts"
+msgstr "Articles"
+
+msgid "Preview"
+msgstr "Prévisualiser"
+
+msgid "Product attribute names"
+msgstr "Noms des attributs de produits"
+
+msgid "Product attributes (names)"
+msgstr "Attributs de produits : noms"
+
+msgid "Product attributes created inside a single product (not global)"
+msgstr "Attributs créés dans un produit, non partagés"
+
+msgid "Product buttons, stock, options and reviews."
+msgstr "Boutons des produits, stock, options et avis."
+
+msgid "Product cards"
+msgstr "Cartes de produits"
+
+msgid "Product categories"
+msgstr "Catégories de produits"
+
+msgid "Product categories & tags"
+msgstr "Catégories et étiquettes de produits"
+
+msgid "Product details"
+msgstr "Détails du produit"
+
+msgid "Product names in the order lines (translated product titles)."
+msgstr "Noms des produits dans les lignes de commande, à partir des titres traduits."
+
+msgid "Product options"
+msgstr "Options du produit"
+
+msgid "Product page"
+msgstr "Page produit"
+
+msgid "Product pages"
+msgstr "Fiches produits"
+
+msgid "Product tabs"
+msgstr "Onglets du produit"
+
+msgid "Product tags"
+msgstr "Étiquettes de produits"
+
+msgid "Product variation names"
+msgstr "Noms des variations de produits"
+
+msgid "Product variations"
+msgstr "Variations de produits"
+
+msgid "Products"
+msgstr "Produits"
+
+msgid "Products & catalog"
+msgstr "Produits et catalogue"
+
+msgid "Products › Attributes (Language selector), or the Taxonomies & attributes page."
+msgstr "Produits › Attributs, via le sélecteur de langue, ou la page Catégories et attributs."
+
+msgid "Progress is temporarily unavailable. You can still continue translating."
+msgstr "La progression est temporairement indisponible. Vous pouvez continuer à traduire."
+
+msgid "Progress per content type and language"
+msgstr "Progression par type de contenu et par langue"
+
+msgid "Prompt to use with an AI"
+msgstr "Consignes pour une traduction par IA"
+
+msgid "Public"
+msgstr "Publique"
+
+msgid "Public product categories and tags"
+msgstr "Catégories et étiquettes de produits publiques"
+
+msgid "Published blog posts"
+msgstr "Articles publiés"
+
+msgid "Published pages are checked in the background. This does not edit your content. You can stop and continue later."
+msgstr "Les pages publiées sont vérifiées en arrière-plan. Leur contenu n’est pas modifié. Vous pouvez arrêter puis reprendre plus tard."
+
+msgid "Published products and their public product pages"
+msgstr "Produits publiés et pages produits publiques"
+
+msgid "Putting a product in the cart (so the cart and checkout show their texts)…"
+msgstr "Ajout d’un produit au panier pour afficher les textes du panier et du paiement…"
+
+msgid "Read selected"
+msgstr "Rechercher les textes sélectionnés"
+
+msgid "Read the code of a plugin or theme"
+msgstr "Rechercher les textes d’une extension ou d’un thème"
+
+msgid "Read this page"
+msgstr "Vérifier cette page"
+
+msgid "Reading"
+msgstr "Vérification"
+
+msgid "Reading %1$s… %2$d/%3$d files"
+msgstr "Lecture de %1$s… %2$d/%3$d fichiers"
+
+msgid "Reading the page…"
+msgstr "Vérification de la page…"
+
+msgid "Recalculate translation status"
+msgstr "Recalculer la progression des traductions"
+
+msgid "Redirect first-time visitors to their browser language"
+msgstr "Proposer la langue du navigateur à la première visite"
+
+msgid "Reference lists used by address selectors. Translate only if needed."
+msgstr "Listes de référence utilisées dans les sélecteurs d’adresse. À traduire seulement si nécessaire."
+
+msgid "Refresh language URLs"
+msgstr "Actualiser les adresses des langues"
+
+msgid "Registration form"
+msgstr "Formulaire d’inscription"
+
+msgid "Related products"
+msgstr "Produits apparentés"
+
+msgid "Remove every untranslated text that no page of the site shows? Translated texts and texts added by hand are kept."
+msgstr "Retirer tous les textes non traduits qu’aucune page ne montre ? Les traductions et les textes ajoutés manuellement sont conservés."
+
+msgid "Remove the texts no page shows"
+msgstr "Retirer les textes absents des pages"
+
+msgid "Remove the translations of the selected texts? The original text is shown again."
+msgstr "Retirer les traductions des textes sélectionnés ? L’original sera de nouveau affiché."
+
+msgid "Remove translation"
+msgstr "Retirer la traduction"
+
+msgid "Removes translations of pages, products, categories or attributes that no longer exist."
+msgstr "Retire les traductions des pages, produits, catégories et attributs qui n’existent plus."
+
+msgid "Report it again"
+msgstr "Signaler à nouveau"
+
+msgid "Reset a translation / clear the page cache"
+msgstr "Réinitialiser une traduction ou vider le cache"
+
+msgid "Reset buttons on every page, product and category; page cache cleared for every language automatically."
+msgstr "Réinitialisation disponible pour chaque page, produit et catégorie ; purge automatique du cache dans chaque langue."
+
+msgid "Reset plugin and deactivate"
+msgstr "Réinitialiser le plugin et le désactiver"
+
+msgid "Reset the %s translation"
+msgstr "Réinitialiser la traduction %s"
+
+msgid "Reset translation:"
+msgstr "Réinitialiser la traduction :"
+
+msgid "Restore a full backup"
+msgstr "Restaurer une sauvegarde complète"
+
+msgid "Restore full backup"
+msgstr "Restaurer la sauvegarde complète"
+
+msgid "Result: %1$d pages read, %2$s ago"
+msgstr "Résultat : %1$d pages vérifiées il y a %2$s"
+
+msgid "Reviews & comments"
+msgstr "Avis et commentaires"
+
+msgid "Rows"
+msgstr "Lignes"
+
+msgid "SEO titles & meta descriptions (Yoast / Rank Math)"
+msgstr "Titres SEO et méta-descriptions de Yoast / Rank Math"
+
+msgid "Same in every language"
+msgstr "Identique dans toutes les langues"
+
+msgid "Same in every language (%d texts not reported)"
+msgstr "Identique dans toutes les langues : %d textes ignorés"
+
+msgid "Save"
+msgstr "Enregistrer"
+
+msgid "Save (or publish) the original first, then switch language to translate it."
+msgstr "Enregistrez ou publiez d’abord l’original, puis changez de langue pour le traduire."
+
+msgid "Save and next"
+msgstr "Enregistrer et suivant"
+
+msgid "Save settings"
+msgstr "Enregistrer les réglages"
+
+msgid "Save translation"
+msgstr "Enregistrer la traduction"
+
+msgid "Save translations"
+msgstr "Enregistrer les traductions"
+
+msgid "Saved."
+msgstr "Enregistré."
+
+msgid "Saved. %d text(s) were edited in the original meanwhile: check them again."
+msgstr "Enregistré. %d texte(s) d’origine ont changé entre-temps : vérifiez-les à nouveau."
+
+msgid "Saving…"
+msgstr "Enregistrement…"
+
+msgid "Scan the whole site"
+msgstr "Vérifier tout le site"
+
+msgid "Scan the whole site…"
+msgstr "Vérifier tout le site…"
+
+msgid "Search"
+msgstr "Rechercher"
+
+msgid "Search a page or a detected text. Choose “Translate this text” to fix it, or mark wording that is intentionally the same in every language."
+msgstr "Recherchez une page ou un texte détecté. Choisissez « Traduire ce texte » pour le corriger, ou indiquez qu’un texte est volontairement identique dans toutes les langues."
+
+msgid "Search a text"
+msgstr "Rechercher un texte"
+
+msgid "Search a text in the whole site…"
+msgstr "Rechercher un texte dans tout le site…"
+
+msgid "Search engines"
+msgstr "Moteurs de recherche"
+
+msgid "Search in %s…"
+msgstr "Rechercher dans %s…"
+
+msgid "Search results"
+msgstr "Résultats de recherche"
+
+msgid "Search: “%s”"
+msgstr "Recherche : « %s »"
+
+msgid "Search…"
+msgstr "Rechercher…"
+
+msgid "See the %d interface texts →"
+msgstr "Voir les %d textes d’interface →"
+
+msgid "See the old original"
+msgstr "Voir l’ancien original"
+
+msgid "Select a language to edit its translation. The original text is shown beside each field."
+msgstr "Choisissez une langue pour modifier sa traduction. Le texte original apparaît à côté de chaque champ."
+
+msgid "Select all"
+msgstr "Tout sélectionner"
+
+msgid "Select and save a menu first."
+msgstr "Choisissez et enregistrez d’abord un menu."
+
+msgid "Select at least one type of page to check."
+msgstr "Sélectionnez au moins un type de page à vérifier."
+
+msgid "Selected lines:"
+msgstr "Lignes sélectionnées :"
+
+msgid "Semicolon ; (Excel FR/PT)"
+msgstr "Point-virgule ; (Excel français / portugais)"
+
+msgid "Sent to you: kept in the original language."
+msgstr "Destinés à la boutique : conservés dans la langue originale."
+
+msgid "Separator"
+msgstr "Séparateur"
+
+msgid "Settings"
+msgstr "Réglages"
+
+msgid "Settings saved."
+msgstr "Réglages enregistrés."
+
+msgid "Several possible content types: %s"
+msgstr "Plusieurs types de contenu possibles : %s"
+
+msgid "Shared labels & messages"
+msgstr "Libellés et messages communs"
+
+msgid "Shared wording and messages whose exact screen depends on the situation."
+msgstr "Textes communs et messages dont l’écran exact dépend de la situation."
+
+msgid "Shared: also changes it on the other pages where it appears."
+msgstr "Partagé : la modification s’applique aussi aux autres pages qui l’utilisent."
+
+msgid "Shared: the same text is translated everywhere."
+msgstr "Partagé : la même formulation est traduite partout."
+
+msgid "Shipping"
+msgstr "Livraison"
+
+msgid "Shop"
+msgstr "Boutique"
+
+msgid "Shop & catalog"
+msgstr "Boutique et catalogue"
+
+msgid "Shop settings"
+msgstr "Réglages de la boutique"
+
+msgid "Shop settings (payment, shipping…)"
+msgstr "Réglages de la boutique : paiement, livraison…"
+
+msgid "Shop texts"
+msgstr "Textes de la boutique"
+
+msgid "Shop texts & messages"
+msgstr "Textes et messages de la boutique"
+
+msgid "Short description"
+msgstr "Description courte"
+
+msgid "Show"
+msgstr "Afficher"
+
+msgid "Show a \"Translations\" column in Pages, Posts and Products lists"
+msgstr "Afficher une colonne « Traductions » dans les listes de pages, articles et produits"
+
+msgid "Show flags"
+msgstr "Afficher les drapeaux"
+
+msgid "Show language names"
+msgstr "Afficher les noms des langues"
+
+msgid "Show on the page"
+msgstr "Repérer sur la page"
+
+msgid "Show only what is left"
+msgstr "Afficher seulement les textes restants"
+
+msgid "Show them anyway"
+msgstr "Les afficher quand même"
+
+msgid "Show them too"
+msgstr "Les afficher aussi"
+
+msgid "Shown as written."
+msgstr "Affichés tels qu’ils ont été saisis."
+
+msgid "Side panel / popup (cart, mobile menu…)"
+msgstr "Panneau latéral ou fenêtre : panier, menu mobile…"
+
+msgid "Sidebar"
+msgstr "Colonne latérale"
+
+msgid "Sign in, registration, password and personal details."
+msgstr "Connexion, inscription, mot de passe et informations personnelles."
+
+msgid "Site search (WordPress, WooCommerce and theme live searches)"
+msgstr "Recherche du site : WordPress, WooCommerce et thème"
+
+msgid "Site texts – theme options & WooCommerce settings"
+msgstr "Textes des réglages du thème et de WooCommerce"
+
+msgid "Site texts: theme options, payment & shipping methods, checkout terms"
+msgstr "Textes des réglages : thème, paiement, livraison et conditions"
+
+msgid "Site title and tagline, widget titles, the options your theme and plugins declare translatable (copyright, cookie notice…), and with WooCommerce the payment & shipping methods, checkout terms and store notice."
+msgstr "Titre et slogan du site, widgets, réglages déclarés traduisibles par le thème et les extensions : droits d’auteur, cookies… Avec WooCommerce : paiement, livraison, conditions et notification de boutique."
+
+msgid "Sitemaps list the original URLs (Google finds the translations through hreflang)."
+msgstr "Les plans de site répertorient les adresses originales. Google découvre les traductions grâce aux balises hreflang."
+
+msgid "Slug & description"
+msgstr "Adresse et description"
+
+msgid "Social links"
+msgstr "Liens sociaux"
+
+msgid "Some older theme texts do not have a saved file location yet, so they appear under Other theme texts."
+msgstr "Certains anciens textes du thème n’ont pas encore d’emplacement de fichier enregistré. Ils apparaissent donc dans « Autres textes du thème »."
+
+msgid "Some translations could not be restored. The available settings and menu selectors were restored; please retry from this backup."
+msgstr "Certaines traductions n’ont pas pu être restaurées. Les réglages disponibles et les sélecteurs de menu ont été restaurés. Réessayez avec cette sauvegarde."
+
+msgid "Sorting & filters"
+msgstr "Tri et filtres"
+
+msgid "Source"
+msgstr "Source"
+
+msgid "Source details"
+msgstr "Détails de la source"
+
+msgid "Source: active theme — %s. Use “Theme area” to narrow the list."
+msgstr "Source : thème actif — %s. Utilisez « Zone du thème » pour affiner la liste."
+
+msgid "Standard WooCommerce texts are ready by source and section. Use Check the site to find wording specific to your pages and open its translation."
+msgstr "Les textes standards de WooCommerce sont déjà classés par origine et rubrique. Vérifiez le site pour détecter les formulations propres à vos pages et ouvrir leur traduction."
+
+msgid "Standard shop texts are ready to translate. Check your site to find your own labels and messages."
+msgstr "Les textes standards de la boutique sont prêts à traduire. Vérifiez le site pour découvrir vos propres libellés et messages."
+
+msgid "Standard texts and settings from your theme and plugins."
+msgstr "Textes standards et réglages de votre thème et de vos extensions."
+
+msgid "Start a new check"
+msgstr "Nouvelle vérification"
+
+msgid "Start check"
+msgstr "Lancer la vérification"
+
+msgid "Start translating"
+msgstr "Commencer à traduire"
+
+msgid "Start with the texts already available"
+msgstr "Commencez par les textes déjà disponibles"
+
+msgid "Still correct"
+msgstr "Toujours correcte"
+
+msgid "Still nothing? <a href=\"%s\">Add the text by hand</a> with its exact wording."
+msgstr "Toujours introuvable ? <a href=\"%s\">Ajoutez le texte manuellement</a> avec sa formulation exacte."
+
+msgid "Stop and save progress"
+msgstr "Arrêter et enregistrer la progression"
+
+msgid "Stopped. “Continue” starts again where it stopped."
+msgstr "Arrêté. Vous pourrez reprendre au même endroit."
+
+msgid "Stored translations"
+msgstr "Traductions enregistrées"
+
+msgid "Subject, heading and additional content: translate them below, per e-mail."
+msgstr "Objet, en-tête et complément : traduisez-les ci-dessous, pour chaque e-mail."
+
+msgid "Switch to %s"
+msgstr "Passer en %s"
+
+msgid "Switcher settings"
+msgstr "Réglages du sélecteur"
+
+msgid "Synced patterns (reusable blocks)"
+msgstr "Compositions synchronisées : blocs réutilisables"
+
+msgid "Tab %d – content"
+msgstr "Onglet %d — contenu"
+
+msgid "Tab %d – title"
+msgstr "Onglet %d — titre"
+
+msgid "Taxonomies & attributes"
+msgstr "Catégories et attributs"
+
+msgid "Tells Google which page is the translation of which."
+msgstr "Indique à Google quelles pages sont les traductions d’un même contenu."
+
+msgid "Terms & conditions"
+msgstr "Conditions générales"
+
+msgid "Test cart and checkout with a sample product"
+msgstr "Tester le panier et la commande avec un produit exemple"
+
+msgid "Text added."
+msgstr "Texte ajouté."
+
+msgid "Text as displayed"
+msgstr "Texte tel qu’il apparaît"
+
+msgid "Text deleted."
+msgstr "Texte supprimé."
+
+msgid "Text ignored (hidden from lists and exports)."
+msgstr "Texte ignoré : masqué dans les listes et les exports."
+
+msgid "Text no longer ignored."
+msgstr "Texte de nouveau pris en compte."
+
+msgid "Texts"
+msgstr "Textes"
+
+msgid "Texts appear by themselves, page by page, as soon as a page is opened. These tools are only for a text you cannot find."
+msgstr "Les textes sont découverts au fil des visites et des vérifications. Ces outils servent à retrouver un texte manquant."
+
+msgid "Texts by source"
+msgstr "Textes par source"
+
+msgid "Texts displayed by JavaScript (WooCommerce cart & checkout blocks, mini-cart, block themes, modern plugins)"
+msgstr "Textes affichés par JavaScript : panier et paiement en blocs, mini-panier, thèmes et extensions modernes"
+
+msgid "Texts of every page (header, footer, menus)"
+msgstr "Textes communs à toutes les pages : en-tête, pied de page et menus"
+
+msgid "Texts of this page"
+msgstr "Textes de cette page"
+
+msgid "Texts of “%s” (buttons, messages, widgets…)"
+msgstr "Textes de « %s » : boutons, messages, widgets…"
+
+msgid "Texts returned by live shop requests and structured API responses."
+msgstr "Textes renvoyés par les requêtes de la boutique et les réponses API structurées."
+
+msgid "Texts specific to other installed plugins are listed here. WooCommerce and the active theme have their own sections; when an extension reuses their texts, its translation is shared there."
+msgstr "Les textes propres aux autres extensions installées sont listés ici. WooCommerce et le thème actif ont leur propre section ; si une extension réutilise leurs textes, la traduction est partagée depuis cette section."
+
+msgid "Texts typed in settings"
+msgstr "Textes des réglages"
+
+msgid "Texts typed in the WooCommerce settings: payment and shipping methods, store notice, checkout terms."
+msgstr "Textes saisis dans les réglages WooCommerce : paiement, livraison, notification de boutique et conditions."
+
+msgid "Texts typed in the theme options: copyright, cookie notice, empty cart text…"
+msgstr "Textes saisis dans les options du thème : droits d’auteur, cookies, panier vide…"
+
+msgid "Texts written by the theme and its companion plugin (header, footer, product page, popups…)."
+msgstr "Textes du thème et de son extension associée : en-tête, pied de page, fiche produit, fenêtres…"
+
+msgid "Texts, settings and widgets from %s are available."
+msgstr "Les textes, réglages et widgets de %s sont disponibles."
+
+msgid "That was the last one of this list."
+msgstr "C’était le dernier contenu de cette liste."
+
+msgid "The blocks and texts shown inside this page are not known yet. Read the page once to list them here."
+msgstr "Les blocs et textes affichés sur cette page ne sont pas encore connus. Vérifiez-la pour les répertorier ici."
+
+msgid "The check needs translated page addresses. Enable pretty permalinks in <a href=\"%s\">WordPress permalink settings</a>."
+msgstr "La vérification a besoin d’adresses de page traduites. Activez les permaliens dans les <a href=\"%s\">réglages WordPress</a>."
+
+msgid "The check stopped because of an error. Reload this page and choose “Continue check”."
+msgstr "La vérification s’est arrêtée à cause d’une erreur. Rechargez cette page et choisissez « Reprendre la vérification »."
+
+msgid "The fastest way"
+msgstr "Le chemin le plus rapide"
+
+msgid "The full backup includes translations, plugin settings, scan data, language preferences and language selectors added to menus. It does not contain your pages, products or other site content."
+msgstr "La sauvegarde complète contient les traductions, les réglages du plugin, les données de détection, les préférences de langue et les sélecteurs ajoutés aux menus. Elle ne contient pas vos pages, produits ni les autres contenus du site."
+
+msgid "The language your content is written in. It is served without prefix (example.com/), the others under example.com/fr/, example.com/en/…"
+msgstr "La langue dans laquelle vos contenus sont rédigés. Elle s’affiche sans préfixe (exemple.com/), les autres sous exemple.com/fr/, exemple.com/en/…"
+
+msgid "The origin is not identified. This fallback replaces this exact wording wherever it appears. For a product or page, prefer translating its own content."
+msgstr "L’origine n’est pas identifiée. Ce remplacement s’appliquera partout où cette formulation exacte apparaît. Pour un produit ou une page, privilégiez sa propre traduction."
+
+msgid "The original changed since this translation was saved. Check the text, then save again."
+msgstr "L’original a changé depuis l’enregistrement de cette traduction. Vérifiez le texte, puis enregistrez à nouveau."
+
+msgid "The original changed since this translation: check it, then save."
+msgstr "L’original a changé depuis cette traduction : vérifiez-la, puis enregistrez."
+
+msgid "The original has changed. Reload the translation screen."
+msgstr "L’original a changé. Actualisez l’écran de traduction."
+
+msgid "The original has changed. Review the translation before saving."
+msgstr "L’original a changé. Vérifiez la traduction avant d’enregistrer."
+
+msgid "The original page could not be read."
+msgstr "Impossible de lire la page originale."
+
+msgid "The original was edited after this translation"
+msgstr "L’original a été modifié après cette traduction"
+
+msgid "The page"
+msgstr "La page"
+
+msgid "The page took too long, or the site forbids showing its pages in a frame (security plugin)."
+msgstr "La page a mis trop de temps à répondre, ou le site interdit son affichage dans un cadre."
+
+msgid "The post"
+msgstr "L’article"
+
+msgid "The product"
+msgstr "Le produit"
+
+msgid "The same text is used in several places: translated once for all of them."
+msgstr "La même formulation est utilisée à plusieurs endroits : une seule traduction s’applique à tous."
+
+msgid "The site check rules have changed. Start a new check to refresh these results."
+msgstr "Les règles du contrôle du site ont changé. Lancez un nouveau contrôle pour actualiser ces résultats."
+
+msgid "The theme option uses the menu and dropdown design already active on your site."
+msgstr "Cette option reprend le style des menus et des sous-menus déjà utilisé par votre thème."
+
+msgid "The translation could not be saved. Please try again."
+msgstr "Impossible d’enregistrer la traduction. Réessayez."
+
+msgid "Their text domains, comma separated (\"*\" = all). Texts of other plugins are not translated (and cost nothing). Pages list the missing ones with a button to add them. Click to add:"
+msgstr "Domaines de traduction séparés par des virgules (« * » pour tous). Les autres extensions ne sont pas traduites. Les pages signalent les domaines manquants et permettent de les ajouter."
+
+msgid "Theme"
+msgstr "Thème"
+
+msgid "Theme area"
+msgstr "Zone du thème"
+
+msgid "Theme content"
+msgstr "Contenus du thème"
+
+msgid "Theme content types (HTML blocks, slides, popups…)"
+msgstr "Contenus du thème : blocs HTML, diapositives, fenêtres…"
+
+msgid "Theme layouts & content"
+msgstr "Mises en page et contenus du thème"
+
+msgid "Theme locations updated. Reloading…"
+msgstr "Emplacements du thème actualisés. Rechargement…"
+
+msgid "Theme options"
+msgstr "Options du thème"
+
+msgid "Theme options (footer, copyright…)"
+msgstr "Options du thème : pied de page, droits d’auteur…"
+
+msgid "Theme texts"
+msgstr "Textes du thème"
+
+msgid "This is not a supported Lightweight Translation full backup."
+msgstr "Ce fichier n’est pas une sauvegarde complète Lightweight Translation compatible."
+
+msgid "This item no longer exists."
+msgstr "Ce contenu n’existe plus."
+
+msgid "This page has not been read yet: open it on the site while logged in (or use “Read all pages”)."
+msgstr "Cette page n’a pas encore été vérifiée : ouvrez-la en étant connecté ou vérifiez le site."
+
+msgid "This reads the active theme and its companion plugin in the background. Existing translations are preserved."
+msgstr "Cette opération analyse le thème actif et son extension associée en arrière-plan. Les traductions existantes sont conservées."
+
+msgid "This removes the plugin data and deactivates Lightweight Translation. Continue?"
+msgstr "Cette action supprime les données du plugin et désactive Lightweight Translation. Continuer ?"
+
+msgid "This translation was made in the editor with another layout: it is edited here as a whole."
+msgstr "Cette traduction possède une autre mise en page et se modifie ici en un seul champ."
+
+msgid "This wording is used in several places. Choose the field to update; the origin cannot be determined from the visible text alone."
+msgstr "Cette formulation existe à plusieurs endroits. Choisissez le champ à modifier ; son origine ne peut pas être déduite du seul texte visible."
+
+msgid "Tick at least one line first."
+msgstr "Cochez d’abord au moins une ligne."
+
+msgid "Tick the languages your visitors can choose."
+msgstr "Choisissez les langues proposées à vos visiteurs."
+
+msgid "Tick the texts first (checkbox on the left)."
+msgstr "Cochez d’abord les textes à gauche."
+
+msgid "Tip: Light translations › Import / Export lets you translate all of these at once with an AI."
+msgstr "Conseil : Import / Export permet de traduire tous ces textes en une seule fois avec une IA."
+
+msgid "Title"
+msgstr "Titre"
+
+msgid "Title, description, short description, URL slug, theme product tabs (WoodMart). Variation descriptions. Language selector on the product edit screen."
+msgstr "Titre, descriptions, adresse et onglets WoodMart. Descriptions des variations. Sélecteur de langue dans l’éditeur du produit."
+
+msgid "Titles (\"Filter by price\", \"Stock status\"…), Text and Custom HTML widgets, block widgets: read automatically, under Theme › Widgets."
+msgstr "Les titres des widgets, leurs textes, le HTML personnalisé et les blocs sont découverts automatiquement dans Thème › Widgets."
+
+msgid "Titles and texts of the widgets of your sidebars and footer."
+msgstr "Titres et textes des widgets de vos colonnes latérales et pieds de page."
+
+msgid "Titles built from the page title are translated; custom SEO descriptions typed in Yoast / Rank Math are not editable per language yet."
+msgstr "Les titres construits à partir du titre de la page sont traduits. Les descriptions SEO personnalisées de Yoast ou Rank Math ne se modifient pas encore par langue."
+
+msgid "To check"
+msgstr "À vérifier"
+
+msgid "To check: the original was edited after it was translated"
+msgstr "À vérifier : l’original a été modifié après sa traduction"
+
+msgid "To find new texts entered in settings or widgets, use <a href=\"%s\">Find setting texts</a> in Tools."
+msgstr "Pour rechercher de nouveaux textes saisis dans les réglages ou les widgets, utilisez <a href=\"%s\">Rechercher les textes des réglages</a> dans Outils."
+
+msgid "To translate"
+msgstr "À traduire"
+
+msgid "To translate (with what is already done, e.g. 3/5)"
+msgstr "À traduire, avec la progression déjà réalisée, par exemple 3/5"
+
+msgid "Tools"
+msgstr "Outils"
+
+msgid "Translate"
+msgstr "Traduire"
+
+msgid "Translate %s"
+msgstr "Traduire %s"
+
+msgid "Translate (Import / Export › Menu links)"
+msgstr "Traduire dans Import / Export › Liens de menu"
+
+msgid "Translate again"
+msgstr "Traduire à nouveau"
+
+msgid "Translate as a table: export / import (Excel, Google Sheets, ChatGPT…)"
+msgstr "Traduire sous forme de tableau : export / import avec Excel, Google Sheets ou ChatGPT"
+
+msgid "Translate everything at once (AI or translator)"
+msgstr "Tout traduire en une fois avec une IA ou un traducteur"
+
+msgid "Translate from the site: 🌐 Translate menu"
+msgstr "Traduire depuis le site : menu 🌐 Traduire"
+
+msgid "Translate here"
+msgstr "Traduire ici"
+
+msgid "Translate in the editor"
+msgstr "Traduire dans l’éditeur"
+
+msgid "Translate in the editor (%s)"
+msgstr "Traduire dans l’éditeur (%s)"
+
+msgid "Translate into %s"
+msgstr "Traduire en %s"
+
+msgid "Translate many texts at once: 1. download a CSV, 2. translate it (manually or with an AI, prompt below), 3. upload the file it returns."
+msgstr "Pour traduire plusieurs textes : téléchargez un CSV, traduisez-le vous-même ou avec une IA, puis importez le fichier obtenu."
+
+msgid "Translate shop texts"
+msgstr "Traduire les textes de la boutique"
+
+msgid "Translate texts found on public pages"
+msgstr "Traduire les textes repérés sur les pages publiques"
+
+msgid "Translate theme texts"
+msgstr "Traduire les textes du thème"
+
+msgid "Translate this %1$s (%2$s)"
+msgstr "Traduire ce contenu %1$s (%2$s)"
+
+msgid "Translate this text"
+msgstr "Traduire ce texte"
+
+msgid "Translate what is displayed on this page"
+msgstr "Traduire ce qui apparaît sur cette page"
+
+msgid "Translated"
+msgstr "Traduit"
+
+msgid "Translated URL slug"
+msgstr "Mot traduit de l’adresse"
+
+msgid "Translated URL words"
+msgstr "Mots traduits des URL"
+
+msgid "Translated in %s"
+msgstr "Traduit en %s"
+
+msgid "Translating: the original is kept. Empty fields = original text shown to visitors."
+msgstr "Traduction en cours : l’original est conservé. Un champ vide affiche le texte original aux visiteurs."
+
+msgid "Translation"
+msgstr "Traduction"
+
+msgid "Translation cleared: the original text is shown again."
+msgstr "Traduction retirée : le texte original est de nouveau affiché."
+
+msgid "Translation languages"
+msgstr "Langues de traduction"
+
+msgid "Translation mode (%s) is active: use \"Save translation\", or go back to the original language to update the post."
+msgstr "Le mode traduction (%s) est actif : utilisez « Enregistrer la traduction » ou revenez à la langue originale pour modifier le contenu."
+
+msgid "Translation mode: %s. Click any text in the page and type the translation. The original is not modified."
+msgstr "Traduction : %s. Cliquez sur un texte de la page et saisissez sa traduction. L’original reste intact."
+
+msgid "Translation progress"
+msgstr "Progression de la traduction"
+
+msgid "Translation reset: %d stored texts deleted. The page cache of every language was cleared."
+msgstr "Traduction réinitialisée : %d textes supprimés et cache des pages vidé dans toutes les langues."
+
+msgid "Translation saved. Reload the page on your site to check it."
+msgstr "Traduction enregistrée. Actualisez la page du site pour vérifier le résultat."
+
+msgid "Translation sections"
+msgstr "Sections de traduction"
+
+msgid "Translation sources"
+msgstr "Sources de traduction"
+
+msgid "Translation status"
+msgstr "Progression des traductions"
+
+msgid "Translation status will be recalculated."
+msgstr "La progression des traductions sera recalculée."
+
+msgid "Translations"
+msgstr "Traductions"
+
+msgid "Turn debug mode off"
+msgstr "Désactiver le mode diagnostic"
+
+msgid "Turn debug mode on"
+msgstr "Activer le mode diagnostic"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "Type a text exactly as you see it on the site, in any language: pages, products, categories, menus, buttons, messages, e-mails… Then click Translate."
+msgstr "Saisissez un texte tel qu’il apparaît sur le site, dans n’importe quelle langue : titre, catégorie, bouton, message ou e-mail. Cliquez ensuite sur Traduire."
+
+msgid "URL"
+msgstr "Adresse"
+
+msgid "URL settings"
+msgstr "Réglages des adresses"
+
+msgid "URLs & SEO"
+msgstr "Adresses et référencement"
+
+msgid "Unable to add the selector."
+msgstr "Impossible d’ajouter le sélecteur."
+
+msgid "Unable to read the file."
+msgstr "Impossible de lire le fichier."
+
+msgid "Unable to reset the translation."
+msgstr "Impossible de réinitialiser la traduction."
+
+msgid "Unable to save the translation."
+msgstr "Impossible d’enregistrer la traduction."
+
+msgid "Unauthorized"
+msgstr "Accès non autorisé"
+
+msgid "Unauthorized."
+msgstr "Accès non autorisé."
+
+msgid "Unknown item."
+msgstr "Contenu inconnu."
+
+msgid "Unknown origin (collected before v0.9)"
+msgstr "Origine inconnue : texte découvert avant la version 0.9"
+
+msgid "Untranslated only"
+msgstr "Non traduits uniquement"
+
+msgid "Upload a CSV downloaded from the Export page (comma or semicolon). Only the translated_text column is used; the original text is read again from the site."
+msgstr "Importez un CSV téléchargé depuis la page d’export, séparé par des virgules ou des points-virgules. Seule la traduction est utilisée ; l’original est relu sur le site."
+
+msgid "Use global attributes (Products › Attributes) to translate them."
+msgstr "Utilisez les attributs partagés, dans Produits › Attributs, pour les traduire."
+
+msgid "Use these actions to refresh caches, fix URLs or remove data you no longer need."
+msgstr "Utilisez ces actions pour actualiser les caches, réparer les adresses ou supprimer les données dont vous n’avez plus besoin."
+
+msgid "Using the original language"
+msgstr "Texte original utilisé"
+
+msgid "Variation: %s"
+msgstr "Variation : %s"
+
+msgid "View"
+msgstr "Voir"
+
+msgid "View in %s"
+msgstr "Voir en %s"
+
+msgid "View on the site"
+msgstr "Voir sur le site"
+
+msgid "View page"
+msgstr "Voir la page"
+
+msgid "View plugin texts"
+msgstr "Voir les textes des extensions"
+
+msgid "Visibility"
+msgstr "Visibilité"
+
+msgid "Visitors"
+msgstr "Visiteurs"
+
+msgid "Visitors & SEO"
+msgstr "Visiteurs et référencement"
+
+msgid "What Light translations translates on this site, where to do it, and what is not included."
+msgstr "Ce que le plugin traduit sur votre site, où le traduire et les fonctions non incluses."
+
+msgid "What is translated?"
+msgstr "Que peut-on traduire ?"
+
+msgid "Where"
+msgstr "Emplacement"
+
+msgid "Where to display it"
+msgstr "Où l’afficher"
+
+msgid "Where would you like to translate it?"
+msgstr "Où souhaitez-vous le traduire ?"
+
+msgid "Whole page"
+msgstr "Page entière"
+
+msgid "Widget"
+msgstr "Widget"
+
+msgid "Widget texts"
+msgstr "Textes des widgets"
+
+msgid "Widgets"
+msgstr "Widgets"
+
+msgid "Widgets (sidebars, shop filters, footer)"
+msgstr "Widgets des colonnes latérales, filtres de boutique et pieds de page"
+
+msgid "Wishlist & compare"
+msgstr "Liste d’envies et comparaison"
+
+msgid "Without category"
+msgstr "Sans catégorie"
+
+msgid "WooCommerce"
+msgstr "WooCommerce"
+
+msgid "WooCommerce Product Bundles"
+msgstr "WooCommerce Product Bundles"
+
+msgid "WooCommerce attribute value"
+msgstr "Valeur d’attribut WooCommerce"
+
+msgid "WooCommerce category"
+msgstr "Catégorie WooCommerce"
+
+msgid "WooCommerce is not active."
+msgstr "WooCommerce n’est pas actif."
+
+msgid "WooCommerce product"
+msgstr "Produit WooCommerce"
+
+msgid "WooCommerce product tag"
+msgstr "Étiquette de produit WooCommerce"
+
+msgid "WooCommerce script texts are included in the standard catalog. Site-specific JavaScript texts can be found by checking the relevant public pages."
+msgstr "Les textes des scripts WooCommerce sont inclus dans le catalogue standard. Vérifiez les pages publiques concernées pour détecter les textes JavaScript propres à votre site."
+
+msgid "WooCommerce settings"
+msgstr "Réglages WooCommerce"
+
+msgid "WooCommerce, theme and plugin texts"
+msgstr "Textes de WooCommerce, du thème et des extensions"
+
+msgid "WoodMart content"
+msgstr "Contenu WoodMart"
+
+msgid "WoodMart detected. Theme texts, WoodMart Core layouts, product tabs and category descriptions are available."
+msgstr "WoodMart est détecté. Les textes du thème, les mises en page WoodMart Core, les onglets de produits et les descriptions de catégories sont disponibles."
+
+msgid "WordPress"
+msgstr "WordPress"
+
+msgid "WordPress page"
+msgstr "Page WordPress"
+
+msgid "WordPress post"
+msgstr "Article WordPress"
+
+msgid "XML sitemaps"
+msgstr "Plans de site XML"
+
+msgid "You are editing the original (%s). Choose a language, then click on the text to translate it."
+msgstr "Vous modifiez l’original (%s). Choisissez une langue, puis cliquez sur le texte à traduire."
+
+msgid "You have unsaved translations. Leave anyway?"
+msgstr "Des traductions ne sont pas enregistrées. Quitter quand même ?"
+
+msgid "Your original content stays in place. Choose the languages you want to offer your visitors."
+msgstr "Vos contenus originaux restent en place. Choisissez les langues à proposer à vos visiteurs."
+
+msgid "Your session expired: reload the page."
+msgstr "Votre session a expiré : actualisez la page."
+
+msgid "Your site, in every language"
+msgstr "Votre site, dans toutes les langues"
+
+msgid "all languages"
+msgstr "toutes les langues"
+
+msgid "button"
+msgstr "bouton"
+
+msgid "choice in a list"
+msgstr "choix dans une liste"
+
+msgid "content"
+msgstr "contenu"
+
+msgid "description"
+msgstr "description"
+
+msgid "disabled"
+msgstr "désactivé"
+
+msgid "e.g. Add to cart, Free shipping, Endodontic kit…"
+msgstr "Ex. : Ajouter au panier, Livraison offerte, Kit d’endodontie…"
+
+msgid "e.g. Handmade jewellery shop for young adults, friendly tone, keep the brand name “Lumi” untranslated."
+msgstr "Ex. : boutique de bijoux artisanaux, ton convivial, conserver la marque « Lumi »."
+
+msgid "empty ignored"
+msgstr "cellules vides ignorées"
+
+msgid "errors"
+msgstr "erreurs"
+
+msgid "excerpt"
+msgstr "extrait"
+
+msgid "field label"
+msgstr "libellé du champ"
+
+msgid "field placeholder"
+msgstr "texte indicatif du champ"
+
+msgid "found in the translation: %s"
+msgstr "trouvé dans la traduction : %s"
+
+msgid "hreflang, canonical, <html lang>"
+msgstr "hreflang, canonical et langue de la page"
+
+msgid "imported"
+msgstr "importés"
+
+msgid "in %s"
+msgstr "dans %s"
+
+msgid "link"
+msgstr "lien"
+
+msgid "message"
+msgstr "message"
+
+msgid "missing"
+msgstr "manquant"
+
+msgid "name"
+msgstr "nom"
+
+msgid "not active"
+msgstr "inactif"
+
+msgid "not read"
+msgstr "non vérifiée"
+
+msgid "not translated"
+msgstr "non traduit"
+
+msgid "not translated on purpose"
+msgstr "conservé volontairement dans la langue originale"
+
+msgid "optional"
+msgstr "facultatif"
+
+msgid "origin not confirmed"
+msgstr "origine non confirmée"
+
+msgid "original word, e.g. shop"
+msgstr "mot original, par ex. shop"
+
+msgid "outdated"
+msgstr "à vérifier"
+
+msgid "page not read yet"
+msgstr "page pas encore vérifiée"
+
+msgid "partly"
+msgstr "partielle"
+
+msgid "payment & shipping methods, checkout terms, store notice, theme options…"
+msgstr "paiement, livraison, conditions, notification de boutique et options du thème…"
+
+msgid "short description"
+msgstr "description courte"
+
+msgid "switched off"
+msgstr "désactivé"
+
+msgid "tab %d"
+msgstr "onglet %d"
+
+msgid "table header"
+msgstr "en-tête de tableau"
+
+msgid "title"
+msgstr "titre"
+
+msgid "to the customer"
+msgstr "au client"
+
+msgid "to the shop – not translated"
+msgstr "à la boutique — non traduit"
+
+msgid "to update"
+msgstr "à actualiser"
+
+msgid "tooltip / screen reader"
+msgstr "infobulle / lecteur d’écran"
+
+msgid "translated"
+msgstr "traduit"
+
+msgid "translated-slug"
+msgstr "adresse-traduite"
+
+msgid "unchanged"
+msgstr "inchangés"
+
+msgid "🐞 menu in the admin bar on the site (language, URL, translation status of the page, cache), report to copy."
+msgstr "Menu 🐞 dans la barre d’administration du site : langue, adresse, état de traduction et cache, avec rapport à copier."
+
+
+msgid "Titles, content and addresses of your pages and posts, and the texts found on your public pages."
+msgstr "Titres, contenus et adresses de vos pages et articles, ainsi que les textes trouvés sur vos pages publiques."
+
+msgid "The links of your navigation menus."
+msgstr "Les liens de vos menus de navigation."
+
+msgid "Products, categories and attributes, then the shop texts: buttons, cart, checkout, payment and shipping methods, e-mails."
+msgstr "Produits, catégories et attributs, puis les textes de la boutique : boutons, panier, commande, modes de paiement et de livraison, e-mails."
+
+msgid "Texts written by your theme, its options (footer, copyright…), widgets and layouts."
+msgstr "Textes écrits par votre thème, ses options (pied de page, copyright…), widgets et mises en page."
+
+msgid "Texts of your other plugins. Texts they reuse from WooCommerce or the theme are translated there, once."
+msgstr "Textes de vos autres extensions. Les textes qu’elles reprennent de WooCommerce ou du thème se traduisent là-bas, une seule fois."
+
+msgid "Any other content type of your site."
+msgstr "Tous les autres types de contenu de votre site."
+
+msgid "Buttons & messages"
+msgstr "Boutons et messages"
+
+msgid "Catalog"
+msgstr "Catalogue"
+
+msgid "How to add a translation"
+msgstr "Comment ajouter une traduction"
+
+msgid "Choose where the text comes from"
+msgstr "Choisissez d’où vient le texte"
+
+msgid "Your pages, your menus, WooCommerce, your theme or another plugin. Each source has its own tab in “Translate”."
+msgstr "Vos pages, vos menus, WooCommerce, votre thème ou une autre extension. Chaque source a son onglet dans « Traduire »."
+
+msgid "Click a line and type the translation"
+msgstr "Cliquez sur une ligne et tapez la traduction"
+
+msgid "The original is shown next to the field. Save: the translation is online at once."
+msgstr "L’original est affiché à côté du champ. Enregistrez : la traduction est en ligne aussitôt."
+
+msgid "Texts still in the original language are highlighted in red; click one to translate it."
+msgstr "Les textes encore dans la langue d’origine sont surlignés en rouge ; cliquez sur l’un d’eux pour le traduire."
+
+msgid "You know the text? Search it: a title, button, message…"
+msgstr "Vous connaissez le texte ? Cherchez-le : un titre, un bouton, un message…"
+
+msgid "Where are your texts?"
+msgstr "Où sont vos textes ?"
+
+msgid "Active theme: %s."
+msgstr "Thème actif : %s."
+
+msgid "Product Bundles detected: component titles and descriptions are translated with their product."
+msgstr "Product Bundles détecté : les titres et descriptions des composants se traduisent avec leur produit."
+
+msgid "Not sure where a text comes from? Check the site: it lists what visitors still see in the original language."
+msgstr "Vous ne savez pas d’où vient un texte ? Vérifiez le site : il liste ce que les visiteurs voient encore dans la langue d’origine."
+
+msgid "Texts found on public pages"
+msgstr "Textes trouvés sur les pages publiques"
+
+msgid "Full backup"
+msgstr "Sauvegarde complète"
+
+msgid "To delete all the plugin data and deactivate it, go to <a href=\"%s\">Settings › Maintenance › Danger zone</a>."
+msgstr "Pour supprimer toutes les données du plugin et le désactiver, allez dans <a href=\"%s\">Réglages › Maintenance › Actions irréversibles</a>."
+
+msgid "Reset the plugin and deactivate it"
+msgstr "Réinitialiser le plugin et le désactiver"
+
+msgid "Deletes every translation, setting and scan of the plugin, then deactivates it. Your pages, products and other content stay. Download the full backup first: the button below unlocks once it is downloaded."
+msgstr "Supprime toutes les traductions, tous les réglages et analyses du plugin, puis le désactive. Vos pages, produits et autres contenus restent. Téléchargez d’abord la sauvegarde complète : le bouton ci-dessous se débloque une fois la sauvegarde téléchargée."
