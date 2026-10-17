@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Lightweight Translation
  * Description: Simple, lightweight translations for WordPress, with optional WooCommerce and theme integrations.
- * Version: 0.46.0
+ * Version: 0.47.0
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Text Domain: lightweight-translation
  */
 defined( 'ABSPATH' ) || exit;
 
-define( 'LT_VERSION', '0.46.0' );
+define( 'LT_VERSION', '0.47.0' );
 define( 'LT_FILE', __FILE__ );
 define( 'LT_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -28,8 +28,16 @@ spl_autoload_register( function( $class ) {
 		'LT_WoodMart_Compat' => 'woodmart/class-woodmart-compat.php',
 		'LT_Product_Bundles_Module' => 'product-bundles/class-product-bundles-module.php',
 	);
-	$file = isset( $modules[ $class ] ) ? LT_DIR . 'modules/' . $modules[ $class ] : LT_DIR . 'includes/class-' . strtolower( str_replace( '_', '-', substr( $class, 3 ) ) ) . '.php';
-	if ( is_readable( $file ) ) require_once $file;
+	if ( isset( $modules[ $class ] ) ) {
+		$file = LT_DIR . 'modules/' . $modules[ $class ];
+		if ( is_readable( $file ) ) require_once $file;
+		return;
+	}
+	// includes/core: storage, routing and shared logic; includes/admin: admin screens and editors; includes/frontend: visitor-side translation.
+	$name = 'class-' . strtolower( str_replace( '_', '-', substr( $class, 3 ) ) ) . '.php';
+	foreach ( array( 'core', 'admin', 'frontend' ) as $dir ) {
+		if ( is_readable( LT_DIR . 'includes/' . $dir . '/' . $name ) ) { require_once LT_DIR . 'includes/' . $dir . '/' . $name; return; }
+	}
 } );
 
 function lt_capability() {
