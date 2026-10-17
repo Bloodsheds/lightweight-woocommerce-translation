@@ -1,7 +1,7 @@
 === Lightweight Translation ===
 Requires at least: 6.2
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.3.0
 
 Simple translations for WordPress, with optional WooCommerce, WoodMart and Product Bundles integrations.
 

@@ -22,7 +22,7 @@ class LT_Site_Scan {
 
 	private function __construct() {
 		add_action( 'admin_menu', array( $this, 'menu' ), 10 );
-		foreach ( array( 'list', 'save', 'ignore' ) as $action ) add_action( 'wp_ajax_lt_site_scan_' . $action, array( $this, 'ajax_' . $action ) );
+		foreach ( array( 'list', 'save', 'ignore', 'texts' ) as $action ) add_action( 'wp_ajax_lt_site_scan_' . $action, array( $this, 'ajax_' . $action ) );
 		add_action( 'wp_enqueue_scripts', array( $this, 'check_mode' ), 30 );
 		add_action( 'admin_bar_menu', array( $this, 'admin_bar' ), 86 );
 		// Pages opened by the check are read, not looked at: no admin bar to build.
@@ -332,6 +332,17 @@ class LT_Site_Scan {
   }
   document.querySelectorAll('.lt-scan-kind,input[name="lt-scan-mode"]').forEach(function (box) { box.addEventListener('change', estimate); });
   estimate();
+  // A page's texts are loaded when it is opened (a report of hundreds of pages stays light).
+  document.querySelectorAll('details.lt-scan-page').forEach(function (section) {
+    section.addEventListener('toggle', function () {
+      if (!section.open || section.getAttribute('data-loaded')) return;
+      section.setAttribute('data-loaded', '1');
+      var box = section.querySelector('.lt-scan-texts');
+      post('texts', { ref: section.getAttribute('data-ref'), language: section.getAttribute('data-language') })
+        .then(function (data) { box.innerHTML = data.html; })
+        .catch(function () { section.removeAttribute('data-loaded'); box.textContent = cfg.labels.error; });
+    });
+  });
   var filter = document.getElementById('lt-scan-filter');
   if (filter) filter.addEventListener('input', function () {
     var query = filter.value.trim().toLocaleLowerCase();
@@ -460,79 +471,106 @@ JS;
 	}
 
 	/** Result: per language, the texts shown almost everywhere (header, footer, menus) once, then each page. */
-	private function report( $languages, $results ) {
-		if ( ! $results['pages'] ) return;
+	/**
+	 * What the report shows for one language: pages => [ref => [visible ids, hidden ids]] (texts on most pages
+	 * removed), common ids, shown (id => visible somewhere), errors (unreadable pages).
+	 */
+	private static function report_data( $language, $results ) {
 		$ignored = self::ignored();
 		$texts   = $results['texts'];
 		$keep    = function( $ids ) use ( $texts, $ignored ) { return array_values( array_unique( array_filter( (array) $ids, function( $id ) use ( $texts, $ignored ) { return isset( $texts[ $id ] ) && ! isset( $ignored[ mb_strtolower( $texts[ $id ] ) ] ); } ) ) ); };
-		LT_Detected_Text::prime( $texts );
-		$item = function( $id, $hidden, $ref, $language ) use ( $texts, $results ) {
-			$text = $texts[ $id ];
-			$origin = LT_Detected_Text::resolve( $text, $ref );
-			echo '<li>' . esc_html( $text );
-			if ( $hidden ) echo ' <span class="lt-muted">' . esc_html__( '(hidden until opened: menu, tab, accordion or popup)', 'lightweight-translation' ) . '</span>';
-			echo '<span class="lt-detected-origin"><strong>' . esc_html__( 'Content type', 'lightweight-translation' ) . ':</strong> ' . esc_html( $origin['origin'] ) . ' <span aria-hidden="true">·</span> <strong>' . esc_html__( 'Found on', 'lightweight-translation' ) . ':</strong> ' . esc_html( $results['pages'][ $ref ]['l'] ?? $ref ) . '</span>';
-			$target = 1 === count( $origin['candidates'] ) ? $origin['candidates'][0]['key'] : '';
-			echo '<a class="button button-small" href="' . esc_url( LT_Detected_Text::url( $text, $ref, $language, $target ) ) . '">' . esc_html__( 'Translate this text', 'lightweight-translation' ) . '</a>';
-			echo '<button type="button" class="button-link lt-ignore" data-text="' . esc_attr( $text ) . '">' . esc_html__( 'Same in every language', 'lightweight-translation' ) . '</button></li>';
-		};
-		$check = function( $url ) { return add_query_arg( 'lt_check', 1, $url ); };
+		$pages = array(); $seen = array(); $shown = array(); $errors = array();
+		foreach ( $results['pages'] as $ref => $page ) {
+			$row = $page['r'][ $language ] ?? null;
+			if ( ! $row ) continue;
+			if ( ! empty( $row['e'] ) ) { $errors[ $ref ] = $page; continue; }
+			$visible = $keep( $row['t'] ?? array() );
+			$hidden  = array_values( array_diff( $keep( $row['h'] ?? array() ), $visible ) );
+			$pages[ $ref ] = array( $visible, $hidden );
+			foreach ( $visible as $id ) $shown[ $id ] = true;
+			foreach ( array_merge( $visible, $hidden ) as $id ) $seen[ $id ] = ( $seen[ $id ] ?? 0 ) + 1;
+		}
+		// Texts on most pages (header, footer, menus, mini-cart): listed once.
+		$limit  = max( 3, (int) ceil( count( $pages ) * 0.5 ) );
+		$common = count( $pages ) >= 4 ? array_keys( array_filter( $seen, function( $n ) use ( $limit ) { return $n >= $limit; } ) ) : array();
+		$todo   = array();
+		foreach ( $pages as $ref => $ids ) {
+			$visible = array_values( array_diff( $ids[0], $common ) );
+			$hidden  = array_values( array_diff( $ids[1], $common ) );
+			if ( $visible || $hidden ) $todo[ $ref ] = array( $visible, $hidden );
+		}
+		uasort( $todo, function( $a, $b ) { return array( count( $b[0] ), count( $b[1] ) ) <=> array( count( $a[0] ), count( $a[1] ) ); } );
+		return array( 'pages' => $pages, 'todo' => $todo, 'common' => $common, 'shown' => $shown, 'errors' => $errors );
+	}
 
-		/* translators: 1: number of pages, 2: time ago */
-		echo '<h2>' . esc_html( sprintf( __( 'Result: %1$d pages read, %2$s ago', 'lightweight-translation' ), count( $results['pages'] ), human_time_diff( (int) ( $results['end'] ?: $results['time'] ) ) ) ) . '</h2>';
+	/** One detected text, with where it comes from and its actions. */
+	private static function text_html( $id, $hidden, $ref, $language, $results ) {
+		$text   = $results['texts'][ $id ];
+		$origin = LT_Detected_Text::resolve( $text, $ref );
+		$html   = '<li>' . esc_html( $text );
+		if ( $hidden ) $html .= ' <span class="lt-muted">' . esc_html__( '(hidden until opened: menu, tab, accordion or popup)', 'lightweight-translation' ) . '</span>';
+		$html .= '<span class="lt-detected-origin"><strong>' . esc_html__( 'Content type', 'lightweight-translation' ) . ':</strong> ' . esc_html( $origin['origin'] ) . ' <span aria-hidden="true">·</span> <strong>' . esc_html__( 'Found on', 'lightweight-translation' ) . ':</strong> ' . esc_html( $results['pages'][ $ref ]['l'] ?? $ref ) . '</span>';
+		$target = 1 === count( $origin['candidates'] ) ? $origin['candidates'][0]['key'] : '';
+		$html .= '<a class="button button-small" href="' . esc_url( LT_Detected_Text::url( $text, $ref, $language, $target ) ) . '">' . esc_html__( 'Translate this text', 'lightweight-translation' ) . '</a>';
+		return $html . '<button type="button" class="button-link lt-ignore" data-text="' . esc_attr( $text ) . '">' . esc_html__( 'Same in every language', 'lightweight-translation' ) . '</button></li>';
+	}
+
+	/** Texts of one page, loaded when the page is opened in the report (the report itself stays light). */
+	public function ajax_texts() {
+		self::check();
+		$ref      = sanitize_text_field( wp_unslash( $_POST['ref'] ?? '' ) );
+		$language = sanitize_key( $_POST['language'] ?? '' );
+		$results  = self::results();
+		if ( ! isset( $results['pages'][ $ref ] ) || ! in_array( $language, self::languages(), true ) ) wp_send_json_error( null, 400 );
+		$data = self::report_data( $language, $results );
+		$ids  = $data['todo'][ $ref ] ?? array( array(), array() );
+		LT_Detected_Text::prime( array_intersect_key( $results['texts'], array_flip( array_merge( $ids[0], $ids[1] ) ) ) );
+		$html = '';
+		foreach ( $ids[0] as $id ) $html .= self::text_html( $id, false, $ref, $language, $results );
+		foreach ( $ids[1] as $id ) $html .= self::text_html( $id, true, $ref, $language, $results );
+		wp_send_json_success( array( 'html' => '<ul>' . $html . '</ul>' ) );
+	}
+
+	private function report( $languages, $results ) {
+		if ( ! $results['pages'] ) return;
+		$ignored = self::ignored();
+		$check   = function( $url ) { return add_query_arg( 'lt_check', 1, $url ); };
+		$end     = (int) ( $results['end'] ?: $results['time'] );
+		$took    = $results['time'] && $results['end'] > $results['time'] ? human_time_diff( (int) $results['time'], (int) $results['end'] ) : '';
+		/* translators: 1: number of pages, 2: date and time, 3: duration */
+		echo '<h2>' . esc_html( sprintf( __( 'Last check: %1$d pages read, finished on %2$s', 'lightweight-translation' ), count( $results['pages'] ), wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $end ) ) . ( $took ? ' · ' . sprintf( __( 'duration %s', 'lightweight-translation' ), $took ) : '' ) ) . '</h2>';
+		$router = LT_Language_Router::instance();
+		echo '<p class="description">' . esc_html( sprintf( __( 'Pages read in the base language (%1$s). Below, for each translation language, the texts of these pages that have no translation yet. Open a page to see its texts.', 'lightweight-translation' ), LT_Language_Router::language_label( $router->default_language() ) ) ) . '</p>';
 		foreach ( $languages as $language ) {
-			$pages  = array(); // ref => [ visible ids, hidden ids ]
-			$seen   = array(); // id => number of pages
-			$shown  = array(); // id => visible on at least one page
-			$errors = array();
-			foreach ( $results['pages'] as $ref => $page ) {
-				$row = $page['r'][ $language ] ?? null;
-				if ( ! $row ) continue;
-				if ( ! empty( $row['e'] ) ) { $errors[ $ref ] = $page; continue; }
-				$visible = $keep( $row['t'] ?? array() );
-				$hidden  = array_values( array_diff( $keep( $row['h'] ?? array() ), $visible ) );
-				$pages[ $ref ] = array( $visible, $hidden );
-				foreach ( $visible as $id ) $shown[ $id ] = true;
-				foreach ( array_merge( $visible, $hidden ) as $id ) $seen[ $id ] = ( $seen[ $id ] ?? 0 ) + 1;
-			}
-			// Texts on most pages (header, footer, menus, mini-cart): listed once.
-			$limit  = max( 3, (int) ceil( count( $pages ) * 0.5 ) );
-			$common = count( $pages ) >= 4 ? array_keys( array_filter( $seen, function( $n ) use ( $limit ) { return $n >= $limit; } ) ) : array();
-			$todo   = array();
-			foreach ( $pages as $ref => $ids ) {
-				$visible = array_values( array_diff( $ids[0], $common ) );
-				$hidden  = array_values( array_diff( $ids[1], $common ) );
-				if ( $visible || $hidden ) $todo[ $ref ] = array( $visible, $hidden );
-			}
-			uasort( $todo, function( $a, $b ) { return array( count( $b[0] ), count( $b[1] ) ) <=> array( count( $a[0] ), count( $a[1] ) ); } );
-
-			/* translators: 1: flag and language, 2: pages with texts to translate, 3: pages fully translated */
-			echo '<h3>' . esc_html( sprintf( __( '%1$s: %2$d pages to review, %3$d without identical texts', 'lightweight-translation' ), LT_Language_Router::flag( $language ) . ' ' . strtoupper( $language ), count( $todo ), count( $pages ) - count( $todo ) ) ) . '</h3>';
+			$data   = self::report_data( $language, $results );
+			$todo   = $data['todo'];
+			$common = $data['common'];
+			$shown  = $data['shown'];
+			/* translators: 1: language, 2: pages with texts to translate, 3: pages fully translated */
+			echo '<h3>' . esc_html( sprintf( __( '%1$s: %2$d pages with texts to translate, %3$d fully translated', 'lightweight-translation' ), LT_Language_Router::flag( $language ) . ' ' . LT_Language_Router::language_label( $language ), count( $todo ), count( $data['pages'] ) - count( $todo ) ) ) . '</h3>';
 			if ( $common ) {
+				LT_Detected_Text::prime( array_intersect_key( $results['texts'], array_flip( $common ) ) );
 				$common_visible = array_values( array_filter( $common, function( $id ) use ( $shown ) { return isset( $shown[ $id ] ); } ) );
-				echo '<details open><summary><strong>' . esc_html__( 'On almost every page (header, footer, menus, mini-cart)', 'lightweight-translation' ) . '</strong>';
+				echo '<details><summary><strong>' . esc_html__( 'On almost every page (header, footer, menus, mini-cart)', 'lightweight-translation' ) . '</strong>';
 				if ( $common_visible ) echo '<span class="lt-badge">' . esc_html( sprintf( _n( '%d visible', '%d visible', count( $common_visible ), 'lightweight-translation' ), count( $common_visible ) ) ) . '</span>';
 				if ( count( $common ) > count( $common_visible ) ) echo '<span class="lt-badge hidden">' . esc_html( sprintf( __( '%d hidden', 'lightweight-translation' ), count( $common ) - count( $common_visible ) ) ) . '</span>';
 				echo '</summary><ul>';
-				foreach ( $common as $id ) { $ref = ''; foreach ( $pages as $page_ref => $page_ids ) if ( in_array( $id, array_merge( $page_ids[0], $page_ids[1] ), true ) ) { $ref = $page_ref; break; } $item( $id, ! isset( $shown[ $id ] ), $ref, $language ); }
+				foreach ( $common as $id ) { $ref = ''; foreach ( $data['pages'] as $page_ref => $page_ids ) if ( in_array( $id, array_merge( $page_ids[0], $page_ids[1] ), true ) ) { $ref = $page_ref; break; } echo self::text_html( $id, ! isset( $shown[ $id ] ), $ref, $language, $results ); } // phpcs:ignore WordPress.Security.EscapeOutput
 				echo '</ul></details>';
 			}
 			foreach ( $todo as $ref => $ids ) {
 				$page = $results['pages'][ $ref ];
 				$url  = $page['r'][ $language ]['u'] ?? '';
-				echo '<details><summary><strong>' . esc_html( $page['l'] ) . '</strong>';
+				echo '<details class="lt-scan-page" data-ref="' . esc_attr( $ref ) . '" data-language="' . esc_attr( $language ) . '"><summary><strong>' . esc_html( $page['l'] ) . '</strong>';
 				if ( $ids[0] ) echo '<span class="lt-badge">' . esc_html( sprintf( _n( '%d visible', '%d visible', count( $ids[0] ), 'lightweight-translation' ), count( $ids[0] ) ) ) . '</span>';
 				if ( $ids[1] ) echo '<span class="lt-badge hidden">' . esc_html( sprintf( __( '%d hidden', 'lightweight-translation' ), count( $ids[1] ) ) ) . '</span>';
 				if ( $url ) echo '<a href="' . esc_url( $check( $url ) ) . '" target="_blank" class="lt-muted">' . esc_html__( 'Show on the page', 'lightweight-translation' ) . ' ↗</a>';
-				echo '</summary><ul>';
-				foreach ( $ids[0] as $id ) $item( $id, false, $ref, $language );
-				foreach ( $ids[1] as $id ) $item( $id, true, $ref, $language );
-				echo '</ul></details>';
+				echo '</summary><div class="lt-scan-texts"><p class="lt-muted" style="padding:0 14px">' . esc_html__( 'Loading…', 'lightweight-translation' ) . '</p></div></details>';
 			}
-			if ( ! $todo && ! $common && $pages ) echo '<p class="lt-ok">✓ ' . esc_html__( 'No identical text was detected on the pages checked.', 'lightweight-translation' ) . '</p>';
-			if ( $errors ) {
-				echo '<details><summary><strong>' . esc_html( sprintf( _n( '%d page could not be read', '%d pages could not be read', count( $errors ), 'lightweight-translation' ), count( $errors ) ) ) . '</strong></summary><ul>';
-				foreach ( $errors as $page ) echo '<li><a href="' . esc_url( $page['o'] ) . '" target="_blank">' . esc_html( $page['l'] ) . ' ↗</a></li>';
+			if ( ! $todo && ! $common && $data['pages'] ) echo '<p class="lt-ok">✓ ' . esc_html__( 'No identical text was detected on the pages checked.', 'lightweight-translation' ) . '</p>';
+			if ( $data['errors'] ) {
+				echo '<details><summary><strong>' . esc_html( sprintf( _n( '%d page could not be read', '%d pages could not be read', count( $data['errors'] ), 'lightweight-translation' ), count( $data['errors'] ) ) ) . '</strong></summary><ul>';
+				foreach ( $data['errors'] as $page ) echo '<li><a href="' . esc_url( $page['o'] ) . '" target="_blank">' . esc_html( $page['l'] ) . ' ↗</a></li>';
 				echo '</ul><p class="lt-muted" style="padding:0 14px 10px">' . esc_html__( 'The page took too long, or the site forbids showing its pages in a frame (security plugin).', 'lightweight-translation' ) . '</p></details>';
 			}
 		}

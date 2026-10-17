@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Lightweight Translation
  * Description: Simple, lightweight translations for WordPress, with optional WooCommerce and theme integrations.
- * Version: 1.0.0
+ * Version: 1.3.0
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Text Domain: lightweight-translation
  */
 defined( 'ABSPATH' ) || exit;
 
-define( 'LT_VERSION', '1.0.0' );
+define( 'LT_VERSION', '1.3.0' );
 define( 'LT_FILE', __FILE__ );
 define( 'LT_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -43,8 +43,21 @@ spl_autoload_register( function( $class ) {
 function lt_capability() {
 	return (string) apply_filters( 'lt_capability', class_exists( 'WooCommerce', false ) ? 'manage_woocommerce' : 'manage_options' );
 }
+/**
+ * Original language of a new install: the language WordPress is set to (changeable in Settings).
+ * Sites that already have translations but never saved this setting keep the former default (pt + fr, en).
+ */
+function lt_set_default_languages() {
+	if ( false !== get_option( 'lt_default_language', false ) ) return;
+	global $wpdb;
+	$table = LT_Translation_Store::table();
+	$used  = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table && (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table" ); // phpcs:ignore WordPress.DB
+	add_option( 'lt_default_language', $used ? 'pt' : LT_Language_Router::site_language() );
+	if ( $used && false === get_option( 'lt_secondary_languages', false ) ) add_option( 'lt_secondary_languages', 'fr,en' );
+}
 function lt_activate() {
 	LT_Translation_Store::install();
+	lt_set_default_languages();
 	update_option( 'lt_flush_rewrite_rules', 1 );
 }
 function lt_deactivate() { flush_rewrite_rules(); }
@@ -54,6 +67,7 @@ register_deactivation_hook( __FILE__, 'lt_deactivate' );
 add_action( 'plugins_loaded', function() {
 	if ( get_option( 'lt_version' ) !== LT_VERSION ) {
 		LT_Translation_Store::install();
+		lt_set_default_languages();
 		// Existing menu selectors used the plugin's boxed dropdown by default; use the theme-native menu now.
 		global $wpdb;
 		$wpdb->update( $wpdb->postmeta, array( 'meta_value' => 'theme' ), array( 'meta_key' => '_lt_switcher_style', 'meta_value' => 'boxed' ), array( '%s' ), array( '%s', '%s' ) );

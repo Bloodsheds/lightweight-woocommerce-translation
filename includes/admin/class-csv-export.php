@@ -7,6 +7,7 @@ defined( 'ABSPATH' ) || exit;
  * and re-imported as-is from the Import page.
  */
 class LT_CSV_Export {
+	const MAX_CHARS = 40000; // per file of a split export (about 10,000 tokens of original text)
 	const COLUMNS = array( 'group', 'item_title', 'object_type', 'object_id', 'field_key', 'language_code', 'status', 'source_text', 'translated_text' );
 
 	private static $instance;
@@ -33,14 +34,14 @@ class LT_CSV_Export {
 		return "You are a professional translator for {$site}.\n"
 			. ( '' !== $context ? 'About the website: ' . $context . "\n" : '' )
 			. 'The attached CSV contains texts written in "' . strtoupper( $router->default_language() ) . "\" (column source_text).\n"
-			. "For EVERY row, write the translation into the language given by column language_code, in column translated_text.\n"
+			. "If the file has a column \"key\": for EVERY row, write the translation in each language column (named with its language code, e.g. fr, en). Otherwise: write the translation into the language given by column language_code, in column translated_text.\n"
 			. "Rules:\n"
-			. "- Do not change any other column (except status, see below), do not add, remove or reorder rows or columns. Keep the header row.\n"
-			. "- If translated_text already contains a translation (status \"outdated\"), update it so it matches the current source_text.\n"
+			. "- Do not change any other column (key, source_text, and status except as below), do not add, remove or reorder rows or columns. Keep the header row.\n"
+			. "- If a translation cell is already filled, update it so it matches the current source_text.\n"
 			. "- Keep exactly: HTML tags and attributes, Gutenberg comments (<!-- wp:... -->, including their JSON), shortcodes [like_this], URLs, e-mail addresses, placeholders (%s, %1\$s, {name}), numbers, units, product references and brand names.\n"
-			. "- field_key \"slug\": lowercase words separated by hyphens, no accents, no spaces (e.g. blue-cotton-shirt).\n"
+			. "- Web address (field_key \"slug\", or a key ending with |slug): lowercase words separated by hyphens, no accents, no spaces (e.g. blue-cotton-shirt).\n"
 			. "- Natural tone that suits the website and its visitors; same length and formatting as the source.\n"
-			. "- If a translation marked \"outdated\" is still correct, keep it and write reviewed in column status.\n"
+			. "- (Files with a status column) If a translation marked \"outdated\" is still correct, keep it and write reviewed in column status.\n"
 			. "- Return the complete file as a CSV: UTF-8, same delimiter as the file you received, every field quoted.";
 	}
 
@@ -60,6 +61,10 @@ class LT_CSV_Export {
 		foreach ( $languages as $language ) echo '<label style="margin-right:14px"><input type="checkbox" name="langs[]" value="' . esc_attr( $language ) . '" checked> ' . esc_html( LT_Language_Router::flag( $language ) . ' ' . LT_Language_Router::language_label( $language ) ) . '</label>';
 		echo '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Rows', 'lightweight-translation' ) . '</th><td><label style="display:block"><input type="radio" name="only" value="todo" checked> ' . esc_html__( 'Only what needs translating (missing + outdated)', 'lightweight-translation' ) . '</label><label style="display:block"><input type="radio" name="only" value="all"> ' . esc_html__( 'Everything (including texts already translated)', 'lightweight-translation' ) . '</label><label style="display:block;margin-top:8px"><input type="checkbox" name="slugs" value="1" checked> ' . esc_html__( 'Include URL slugs', 'lightweight-translation' ) . '</label></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Format', 'lightweight-translation' ) . '</th><td><label style="display:block"><input type="radio" name="format" value="compact" checked> <strong>' . esc_html__( 'Compact, for an AI (fewer tokens)', 'lightweight-translation' ) . '</strong> — ' . esc_html__( 'one row per text: its reference, the original and one column per language.', 'lightweight-translation' ) . '</label><label style="display:block"><input type="radio" name="format" value="full"> ' . esc_html__( 'Complete, for Excel (one row per language, with titles and status)', 'lightweight-translation' ) . '</label></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Split', 'lightweight-translation' ) . '</th><td><select name="split"><option value="0">' . esc_html__( 'One file', 'lightweight-translation' ) . '</option>';
+		foreach ( array( 100, 250, 500, 1000 ) as $size ) echo '<option value="' . (int) $size . '"' . selected( 250, $size, false ) . '>' . esc_html( sprintf( __( 'Files of %d texts (zip)', 'lightweight-translation' ), $size ) ) . '</option>';
+		echo '</select><p class="description">' . esc_html__( 'Give the AI one file at a time. A file also stops at about 40,000 characters, so long product descriptions never make it too big. Import all the returned files at once.', 'lightweight-translation' ) . '</p></td></tr>';
 		echo '<tr><th>' . esc_html__( 'Separator', 'lightweight-translation' ) . '</th><td><select name="delimiter"><option value=";">' . esc_html__( 'Semicolon ; (Excel FR/PT)', 'lightweight-translation' ) . '</option><option value=",">' . esc_html__( 'Comma , (Google Sheets, Excel EN)', 'lightweight-translation' ) . '</option></select></td></tr></table>';
 		submit_button( __( 'Download CSV', 'lightweight-translation' ), 'primary', 'submit', false );
 		echo '</form></div>';
@@ -116,8 +121,10 @@ class LT_CSV_Export {
 		$string_index  = ( $string_source || $string_kind || $string_group ) ? (array) get_option( 'lt_string_index', array() ) : array();
 
 		$name = 1 === count( $groups ) ? sanitize_title( str_replace( ':', '-', $groups[0] ) ) : 'content';
-		$out  = $this->open_csv( 'translations-' . $name . '-' . implode( '-', $languages ) );
-		$this->put( $out, self::COLUMNS, $delimiter );
+		$compact = 'full' !== sanitize_key( $_REQUEST['format'] ?? 'full' );
+		$split   = in_array( absint( $_REQUEST['split'] ?? 0 ), array( 100, 250, 500, 1000 ), true ) ? absint( $_REQUEST['split'] ) : 0;
+		$header  = $compact ? array_merge( array( 'key', 'source_text' ), $languages ) : self::COLUMNS;
+		$rows    = array();
 		foreach ( $groups as $group ) {
 			foreach ( ( null !== $only_ids ? array_map( 'absint', array_map( function( $ref ) { return substr( $ref, strpos( $ref, '|' ) + 1 ); }, array_keys( array_filter( $only_ids, function( $v, $ref ) use ( $group ) { return 0 === strpos( $ref, $group . '|' ); }, ARRAY_FILTER_USE_BOTH ) ) ) ) : LT_Content_Catalog::item_ids( $group ) ) as $id ) {
 				$item = LT_Content_Catalog::item( $group, $id );
@@ -133,15 +140,79 @@ class LT_CSV_Export {
 						if ( $string_group && LT_Sources::group_of( $field, $entry ) !== $string_group ) continue;
 						if ( ! apply_filters( 'lt_export_string_include', true, $field, $entry, $_REQUEST ) ) continue;
 					}
+					if ( $compact ) { // one row per text, one column per language (the original is sent once)
+						$cells = array(); $todo = false;
+						foreach ( $languages as $language ) {
+							list( $status, $translated ) = LT_Content_Catalog::field_status( $item['type'], $item['id'], $field, $source, $language );
+							if ( 'translated' !== $status ) $todo = true;
+							$cells[] = $translated;
+						}
+						if ( $only_todo && ! $todo ) continue;
+						$rows[] = array_merge( array( $item['type'] . '|' . $item['id'] . '|' . $field, $source ), $cells );
+						continue;
+					}
 					foreach ( $languages as $language ) {
 						list( $status, $translated ) = LT_Content_Catalog::field_status( $item['type'], $item['id'], $field, $source, $language );
 						if ( $only_todo && 'translated' === $status ) continue;
-						$this->put( $out, array( $all_groups[ $group ], $item['title'], $item['type'], $item['id'], $field, $language, $status, $source, $translated ), $delimiter );
+						$rows[] = array( $all_groups[ $group ], $item['title'], $item['type'], $item['id'], $field, $language, $status, $source, $translated );
 					}
 				}
 			}
 		}
-		fclose( $out );
+		$this->send( 'translations-' . $name . '-' . implode( '-', $languages ), $header, $rows, $split, $delimiter );
 		exit;
+	}
+
+	/** CSV text of some rows (UTF-8 BOM, so Excel shows accents). */
+	private function csv( $header, $rows, $delimiter ) {
+		$out = fopen( 'php://temp', 'w+' );
+		fwrite( $out, "\xEF\xBB\xBF" );
+		$this->put( $out, $header, $delimiter );
+		foreach ( $rows as $row ) $this->put( $out, $row, $delimiter );
+		rewind( $out );
+		$csv = (string) stream_get_contents( $out );
+		fclose( $out );
+		return $csv;
+	}
+
+	/** Groups of rows: at most $size rows and about MAX_CHARS characters each (0 = a single group). */
+	private static function chunks( $rows, $size ) {
+		if ( ! $size ) return array( $rows );
+		$chunks = array(); $current = array(); $chars = 0;
+		foreach ( $rows as $row ) {
+			$length = strlen( implode( '', $row ) );
+			if ( $current && ( count( $current ) >= $size || $chars + $length > self::MAX_CHARS ) ) { $chunks[] = $current; $current = array(); $chars = 0; }
+			$current[] = $row;
+			$chars += $length;
+		}
+		if ( $current || ! $chunks ) $chunks[] = $current;
+		return $chunks;
+	}
+
+	/** One CSV, or a zip of numbered CSV files when the export is split. */
+	private function send( $name, $header, $rows, $split, $delimiter ) {
+		$chunks = self::chunks( $rows, $split );
+		$stamp  = gmdate( 'Y-m-d-His' );
+		if ( 1 === count( $chunks ) || ! class_exists( 'ZipArchive' ) ) {
+			// No zip support on this server: a single file (the description of the page says so).
+			nocache_headers();
+			header( 'Content-Type: text/csv; charset=utf-8' );
+			header( 'Content-Disposition: attachment; filename=' . $name . '-' . $stamp . '.csv' );
+			echo $this->csv( $header, $rows, $delimiter ); // phpcs:ignore WordPress.Security.EscapeOutput
+			return;
+		}
+		if ( ! function_exists( 'wp_tempnam' ) ) require_once ABSPATH . 'wp-admin/includes/file.php';
+		$file = wp_tempnam( $name . '.zip' );
+		$zip  = new ZipArchive();
+		if ( true !== $zip->open( $file, ZipArchive::CREATE | ZipArchive::OVERWRITE ) ) wp_die( esc_html__( 'Could not create the zip file.', 'lightweight-translation' ) );
+		$total = count( $chunks );
+		foreach ( $chunks as $i => $chunk ) $zip->addFromString( sprintf( '%s-part-%0' . strlen( (string) $total ) . 'd-of-%d.csv', $name, $i + 1, $total ), $this->csv( $header, $chunk, $delimiter ) );
+		$zip->close();
+		nocache_headers();
+		header( 'Content-Type: application/zip' );
+		header( 'Content-Disposition: attachment; filename=' . $name . '-' . $stamp . '.zip' );
+		header( 'Content-Length: ' . filesize( $file ) );
+		readfile( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+		@unlink( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 	}
 }

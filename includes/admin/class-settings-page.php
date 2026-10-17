@@ -268,8 +268,8 @@ syncDefault();
 	public function save() {
 		if ( ! current_user_can( lt_capability() ) || ! check_admin_referer( 'lt_save_settings' ) ) wp_die( esc_html__( 'Unauthorized', 'lightweight-translation' ) );
 		$post    = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-		$before  = array( get_option( 'lt_default_language', 'pt' ), get_option( 'lt_secondary_languages', 'fr,en' ), get_option( 'lt_url_bases', array() ) );
-		$default = sanitize_key( $post['default'] ?? 'pt' ) ?: 'pt';
+		$before  = array( get_option( 'lt_default_language', LT_Language_Router::site_language() ), get_option( 'lt_secondary_languages', '' ), get_option( 'lt_url_bases', array() ) );
+		$default = sanitize_key( $post['default'] ?? '' ) ?: LT_Language_Router::site_language();
 		$codes   = array_map( 'sanitize_key', (array) ( $post['secondary'] ?? array() ) );
 		foreach ( explode( ',', (string) ( $post['secondary_custom'] ?? '' ) ) as $code ) $codes[] = sanitize_key( trim( $code ) );
 		$codes = array_values( array_unique( array_filter( $codes, function( $code ) use ( $default ) { return $code && $code !== $default && strlen( $code ) <= 12; } ) ) );

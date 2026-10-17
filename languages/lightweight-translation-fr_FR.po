@@ -2560,3 +2560,50 @@ msgstr "Irréversible. Téléchargez d’abord une sauvegarde complète (ci-dess
 
 msgid "Full backup, restore and plugin reset are in <a href=\"%s\">Settings › Maintenance</a>."
 msgstr "La sauvegarde complète, la restauration et la réinitialisation du plugin sont dans <a href=\"%s\">Réglages › Maintenance</a>."
+
+msgid "Upload the CSV files returned by the AI or the translator (comma or semicolon), several at once if the export was split. Only the translations are used; the original text is read again from the site."
+msgstr "Envoyez les fichiers CSV rendus par l’IA ou le traducteur (virgule ou point-virgule), plusieurs à la fois si l’export a été découpé. Seules les traductions sont utilisées ; le texte d’origine est relu sur le site."
+
+msgid "%d file"
+msgid_plural "%d files"
+msgstr[0] "%d fichier"
+msgstr[1] "%d fichiers"
+
+msgid "Format"
+msgstr "Format"
+
+msgid "Compact, for an AI (fewer tokens)"
+msgstr "Compact, pour une IA (moins de tokens)"
+
+msgid "one row per text: its reference, the original and one column per language."
+msgstr "une ligne par texte : sa référence, l’original et une colonne par langue."
+
+msgid "Complete, for Excel (one row per language, with titles and status)"
+msgstr "Complet, pour Excel (une ligne par langue, avec titres et statut)"
+
+msgid "Split"
+msgstr "Découpage"
+
+msgid "One file"
+msgstr "Un seul fichier"
+
+msgid "Files of %d texts (zip)"
+msgstr "Fichiers de %d textes (zip)"
+
+msgid "Give the AI one file at a time. A file also stops at about 40,000 characters, so long product descriptions never make it too big. Import all the returned files at once."
+msgstr "Donnez les fichiers à l’IA un par un. Un fichier s’arrête aussi vers 40 000 caractères, pour que les longues descriptions de produits ne le rendent jamais trop gros. Importez ensuite tous les fichiers rendus en une fois."
+
+msgid "Could not create the zip file."
+msgstr "Impossible de créer le fichier zip."
+
+msgid "Last check: %1$d pages read, finished on %2$s"
+msgstr "Dernière vérification : %1$d pages lues, terminée le %2$s"
+
+msgid "duration %s"
+msgstr "durée %s"
+
+msgid "Pages read in the base language (%1$s). Below, for each translation language, the texts of these pages that have no translation yet. Open a page to see its texts."
+msgstr "Pages lues dans la langue de base (%1$s). Ci-dessous, pour chaque langue de traduction, les textes de ces pages qui n’ont pas encore de traduction. Ouvrez une page pour voir ses textes."
+
+msgid "%1$s: %2$d pages with texts to translate, %3$d fully translated"
+msgstr "%1$s : %2$d pages avec des textes à traduire, %3$d entièrement traduites"

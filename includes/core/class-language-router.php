@@ -36,13 +36,18 @@ class LT_Language_Router {
 		add_filter( 'term_link', array( $this, 'term_link' ), 20, 3 );
 		add_action( 'wp_enqueue_scripts', array( $this, 'frontend_assets' ) );
 	}
+	/** Language WordPress itself is set to (Settings › General › Site language): "fr" for fr_FR; English if unknown. */
+	public static function site_language() {
+		$code = sanitize_key( strtolower( substr( (string) get_option( 'WPLANG', '' ) ?: ( function_exists( 'get_locale' ) ? get_locale() : 'en_US' ), 0, 2 ) ) );
+		return strlen( $code ) === 2 ? $code : 'en';
+	}
 	public function languages() {
-		$default = get_option( 'lt_default_language', 'pt' );
-		$secondary = get_option( 'lt_secondary_languages', 'fr,en' );
+		$default = get_option( 'lt_default_language', self::site_language() );
+		$secondary = get_option( 'lt_secondary_languages', '' );
 		$list = array_filter( array_map( 'sanitize_key', array_merge( array( $default ), explode( ',', $secondary ) ) ) );
 		return array_values( array_unique( $list ) );
 	}
-	public function default_language() { return sanitize_key( get_option( 'lt_default_language', 'pt' ) ); }
+	public function default_language() { return sanitize_key( get_option( 'lt_default_language', self::site_language() ) ); }
 	public function selector_languages() { $languages = array_values( array_filter( $this->languages(), function( $l ) { return ! $this->is_hidden( $l ); } ) ); /* hidden languages: never in the switcher (editors preview them via /xx/) */ if ( ! get_option( 'lt_selector_include_default', 1 ) ) $languages = array_values( array_diff( $languages, array( $this->default_language() ) ) ); return $languages; }
 	private function is_async_request() { return wp_doing_ajax() || ( defined( 'WC_DOING_AJAX' ) && WC_DOING_AJAX ) || defined( 'REST_REQUEST' ) || isset( $_REQUEST['wc-ajax'] ) || isset( $_GET['rest_route'] ); }
 	/** Language of the page of this site that sent the request ('' when unknown). */
