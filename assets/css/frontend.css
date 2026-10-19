@@ -159,3 +159,8 @@
 .lt-language-switcher-list [aria-current="page"] { font-weight: 600; }
 .wd-nav-mobile .lt-language-switcher-menu.wd-dropdown, .mobile-nav .lt-language-switcher-menu.wd-dropdown { position: static; display: none; min-width: 0; margin: 0; padding: 0; box-shadow: none; transform: none; visibility: visible; opacity: 1; pointer-events: auto; }
 .wd-nav-mobile .lt-menu-switcher-item.wd-opened > .lt-language-switcher-menu, .mobile-nav .lt-menu-switcher-item.wd-opened > .lt-language-switcher-menu { display: block; }
+
+/* The active language opens the list; it is not a link to click. */
+.lt-language-switcher-trigger--theme,
+.lt-language-switcher-mobile-trigger,
+.lt-language-switcher-list [aria-current] { cursor: default; }

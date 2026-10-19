@@ -13,6 +13,30 @@
 		fd.append('nonce', C.nonce);
 		return fetch(C.ajax, { method: 'POST', credentials: 'same-origin', body: fd }).then(function (r) { return r.json(); });
 	}
+	var progressRequest = 0;
+	function refreshProgress() {
+		if (!C.view) return;
+		var fd = new FormData(), serial = ++progressRequest;
+		fd.append('action', 'lt_source_progress');
+		Object.keys(C.view).forEach(function (key) { fd.append(key, C.view[key]); });
+		send(fd).then(function (r) {
+			if (serial !== progressRequest || !r || !r.success) return;
+			var side = $('.lt-side');
+			if (side && r.data.sidebar !== null) {
+				var scroll = side.scrollTop, back = $('.lt-back', side);
+				side.innerHTML = r.data.sidebar;
+				if (back) side.insertBefore(back, side.firstChild);
+				side.scrollTop = scroll;
+			}
+			var p = r.data.progress;
+			$$('.lt-head [data-lt-language]').forEach(function (row) {
+				var lang = row.dataset.ltLanguage, bar = $('.lt-bar i', row), text = $('.lt-progress-text', row);
+				if (bar) bar.style.width = (p.total ? Math.floor(100 * (p.translated[lang] || 0) / p.total) : 0) + '%';
+				if (text) text.textContent = p.labels[lang] || '';
+			});
+		}).catch(function () { /* Saving succeeded; the next navigation refreshes these counts too. */ });
+	}
+
 	function grow(t) { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
 	function msg(text, kind) { var m = $('.lt-panel-msg', box); if (m) { m.textContent = text || ''; m.className = 'lt-panel-msg ' + (kind || ''); } }
 	function rowOf(group, id) { return $('tr[data-key="' + group + '|' + id + '"]'); }
@@ -92,6 +116,7 @@
 			busy = false;
 			if (!r || !r.success) { msg((r && r.data && r.data.message) || T.error, 'err'); return; }
 			dirty = false;
+			refreshProgress();
 			// Refresh the line (and its variations) in the list.
 			if (tr && r.data.row) {
 				$$('tr.lt-var-' + cur.id).forEach(function (v) { v.parentNode.removeChild(v); });

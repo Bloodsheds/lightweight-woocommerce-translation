@@ -16,6 +16,7 @@ defined( 'ABSPATH' ) || exit;
 class LT_Script_Texts {
 
 	private static $instance;
+	private static $maps = array();
 	public static function instance() { return self::$instance ?: ( self::$instance = new self() ); }
 
 	private function __construct() {
@@ -24,7 +25,7 @@ class LT_Script_Texts {
 		add_action( 'admin_init', array( $this, 'admin_init' ) );
 	}
 
-	private static function field( $key ) { return 'string_' . md5( $key ); }
+	private static function field( $key, $domain ) { return LT_String_Keys::field( $domain, $key ); }
 
 	private static function normalize( $text ) { return trim( preg_replace( '/\s+/u', ' ', html_entity_decode( wp_strip_all_tags( (string) $text ), ENT_QUOTES, 'UTF-8' ) ) ); }
 
@@ -34,7 +35,7 @@ class LT_Script_Texts {
 		return 2 === count( $parts ) ? translate_with_gettext_context( $parts[1], $parts[0], $domain ) : translate( $key, $domain );
 	}
 
-	public static function flush() { foreach ( LT_Language_Router::instance()->languages() as $language ) delete_transient( 'lt_wcjs_' . $language ); }
+	public static function flush() { self::$maps = array(); }
 
 	/** Adds JavaScript texts: translated on the site from now on, and listed in Interface texts. @param array $texts key => [ domain, plural ] */
 	private static function add( $texts, $type = '' ) {
@@ -44,9 +45,10 @@ class LT_Script_Texts {
 		$switched = function_exists( 'switch_to_locale' ) && switch_to_locale( get_locale() ); // originals in the site language, not the admin's
 		foreach ( $texts as $key => $info ) {
 			list( $domain, $plural ) = $info;
+			$key = (string) ( $info[3] ?? $key );
 			$place = (array) ( $info[2] ?? array() );
 			if ( ! isset( $js[ $domain ][ $key ] ) ) { $js[ $domain ][ $key ] = (string) $plural; $changed = true; }
-			$page[ self::field( $key ) ] = array( self::visible( $key, $domain ), $domain, 'j' ) + $place; // 'j': written by JavaScript, kept when the page is read again
+			$page[ self::field( $key, $domain ) ] = array( self::visible( $key, $domain ), $domain, 'j', LT_String_Keys::legacy( $key ) ) + $place; // 'j': written by JavaScript, kept when the page is read again
 		}
 		if ( $switched ) restore_previous_locale();
 		if ( $changed ) { update_option( 'lt_js_strings', $js, false ); self::flush(); }
@@ -90,7 +92,8 @@ class LT_Script_Texts {
 			$key = (string) ( $item['k'] ?? '' );
 			if ( '' === $key || strlen( $key ) > 2000 || ! preg_match( '/\p{L}{2,}/u', $key ) ) continue;
 			$place = isset( $item['w'] ) ? LT_Page_Places::from_path( substr( (string) $item['w'], 0, 4000 ), (string) ( $item['a'] ?? '' ), isset( $item['o'] ) ? max( 0, min( 100, (int) $item['o'] ) ) : null ) : array( 'z' => 'unseen' );
-			$texts[ $key ] = array( sanitize_text_field( (string) ( $item['d'] ?? '' ) ) ?: 'default', (string) ( $item['p'] ?? '' ), $place );
+			$domain = sanitize_text_field( (string) ( $item['d'] ?? '' ) ) ?: 'default';
+			$texts[ $domain . "\0" . $key ] = array( $domain, (string) ( $item['p'] ?? '' ), $place, $key );
 		}
 		self::add( $texts, sanitize_text_field( wp_unslash( (string) ( $_POST['type'] ?? '' ) ) ) );
 		wp_send_json_success( array( 'count' => count( $texts ) ) );
@@ -98,71 +101,87 @@ class LT_Script_Texts {
 
 	/* ---------- Site ---------- */
 
-	/** [ i18n => key => translation(s), dom => visible text => translation ] for one language. */
-	private static function maps( $language ) {
-		$cached = get_transient( 'lt_wcjs_' . $language );
-		if ( is_array( $cached ) && ( $cached['_domains'] ?? '' ) === implode( ',', LT_Frontend_Filters::domains() ) ) return $cached;
-		global $wpdb;
+	/** wp.i18n texts of one language: key => translation, or [ single, plural ]. */
+	private static function i18n_map( $language ) {
+		if ( isset( self::$maps[ $language ]['i18n'] ) ) return self::$maps[ $language ]['i18n'];
 		$keys = array();
-		foreach ( (array) get_option( 'lt_js_strings', array() ) as $domain => $domain_keys ) if ( LT_Frontend_Filters::domain_allowed( $domain ) ) $keys += (array) $domain_keys;
+		foreach ( (array) get_option( 'lt_js_strings', array() ) as $domain => $domain_keys ) if ( LT_Frontend_Filters::domain_allowed( $domain ) ) foreach ( (array) $domain_keys as $key => $plural ) $keys[ $domain . "\0" . $key ] = array( $domain, $key, $plural );
 		$i18n = array();
-		foreach ( $keys as $key => $plural ) {
-			$single = LT_Translation_Store::string_value( $language, self::field( $key ) );
+		foreach ( $keys as $entry ) {
+			list( $domain, $key, $plural ) = $entry;
+			$single = LT_Translation_Store::string_value( $language, self::field( $key, $domain ) );
+			if ( null === $single ) $single = LT_Translation_Store::string_value( $language, LT_String_Keys::legacy( $key ) );
 			if ( null === $single || '' === $single ) continue;
 			$context = false !== strpos( $key, "\x04" ) ? substr( $key, 0, strpos( $key, "\x04" ) + 1 ) : '';
-			$many    = '' !== (string) $plural ? LT_Translation_Store::string_value( $language, self::field( $context . $plural ) ) : null;
-			$i18n[ $key ] = $many ? array( $single, $many ) : $single;
+			$many    = '' !== (string) $plural ? LT_Translation_Store::string_value( $language, self::field( $context . $plural, $domain ) ) : null;
+			if ( null === $many && '' !== (string) $plural ) $many = LT_Translation_Store::string_value( $language, LT_String_Keys::legacy( $context . $plural ) );
+			$i18n[ $domain . "\0" . $key ] = $many ? array( $single, $many ) : $single;
 		}
-		// Replaced in the page as displayed: only the texts added by hand (small list), so the page stays light.
+		return self::$maps[ $language ]['i18n'] = $i18n;
+	}
+
+	/** Texts added by hand, replaced in the page as displayed: visible text => translation (small list, so the page stays light). */
+	private static function dom_map( $language ) {
+		if ( isset( self::$maps[ $language ]['dom'] ) ) return self::$maps[ $language ]['dom'];
+		global $wpdb;
 		$dom   = array();
 		$table = LT_Translation_Store::table();
 		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT source_text, translated_text FROM $table WHERE language_code=%s AND object_type='string' AND object_id=0 AND status IN ('translated','reviewed') AND translated_text <> '' AND field_key LIKE %s", $language, 'text\\_%' ) ); // phpcs:ignore WordPress.DB
 		foreach ( (array) $rows as $row ) { $source = self::normalize( $row->source_text ); if ( '' !== $source && mb_strlen( $source ) < 300 ) $dom[ $source ] = (string) $row->translated_text; }
-		$maps = array( 'i18n' => $i18n, 'dom' => $dom, '_domains' => implode( ',', LT_Frontend_Filters::domains() ) );
-		set_transient( 'lt_wcjs_' . $language, $maps, 12 * HOUR_IN_SECONDS );
-		return $maps;
+		return self::$maps[ $language ]['dom'] = $dom;
+	}
+
+	/**
+	 * The wp.i18n dictionary is added right after wp-hooks itself, only when the page really prints wp-hooks
+	 * (a script of the page uses wp.i18n): pages without such scripts neither compute nor carry it.
+	 */
+	public static function i18n_tag( $tag, $handle ) {
+		static $printed = false;
+		if ( 'wp-hooks' !== $handle || $printed ) return $tag;
+		$router = LT_Language_Router::instance();
+		if ( ! $router->is_secondary() ) return $tag;
+		$map = self::i18n_map( $router->current_language() );
+		if ( ! $map ) return $tag;
+		$printed = true;
+		// Runs before any script uses wp.i18n: every call is answered with our translation when we have one.
+		// Singular or plural: the rule of the visitor's language (French uses the singular for 0 too).
+		$single = LT_Frontend_Filters::plural_is_single( $router->current_language(), 0 ) ? 'Math.abs(n)<2' : 'n===1';
+		return $tag . wp_get_inline_script_tag( '(function(h,m){if(!h)return;var o=Object.prototype.hasOwnProperty;function t(r,d,k,n){k=(d||"default")+"\u0000"+k;if(!o.call(m,k))return r;var v=m[k];return typeof v==="string"?v:((' . $single . ')?v[0]:v[1]||v[0]);}'
+			. 'h.addFilter("i18n.gettext","lt",function(r,s,d){return t(r,d,s,1);});'
+			. 'h.addFilter("i18n.gettext_with_context","lt",function(r,s,c,d){return t(r,d,c+"\u0004"+s,1);});'
+			. 'h.addFilter("i18n.ngettext","lt",function(r,s,p,n,d){return t(r,d,s,n);});'
+			. 'h.addFilter("i18n.ngettext_with_context","lt",function(r,s,p,n,c,d){return t(r,d,c+"\u0004"+s,n);});'
+			. '})(window.wp&&window.wp.hooks,' . wp_json_encode( $map ) . ');' );
 	}
 
 	public function front() {
 		if ( is_admin() ) return;
 		$router = LT_Language_Router::instance();
 		if ( $router->is_secondary() ) {
-			$maps = self::maps( $router->current_language() );
-			if ( $maps['i18n'] ) {
-				// Runs before any script uses wp.i18n: every call is answered with our translation when we have one.
-				wp_add_inline_script( 'wp-hooks', '(function(h,m){if(!h)return;var o=Object.prototype.hasOwnProperty;function t(r,k,n){if(!o.call(m,k))return r;var v=m[k];return typeof v==="string"?v:(n===1?v[0]:v[1]||v[0]);}'
-					. 'h.addFilter("i18n.gettext","lt",function(r,s){return t(r,s,1);});'
-					. 'h.addFilter("i18n.gettext_with_context","lt",function(r,s,c){return t(r,c+"\u0004"+s,1);});'
-					. 'h.addFilter("i18n.ngettext","lt",function(r,s,p,n){return t(r,s,n);});'
-					. 'h.addFilter("i18n.ngettext_with_context","lt",function(r,s,p,n,c){return t(r,c+"\u0004"+s,n);});'
-					. '})(window.wp&&window.wp.hooks,' . wp_json_encode( $maps['i18n'] ) . ');', 'after' );
-			}
-			if ( $maps['dom'] && apply_filters( 'lt_replace_visible_texts', true ) ) {
-				wp_register_script( 'lt-texts', false, array(), LT_VERSION, true );
-				wp_enqueue_script( 'lt-texts' );
-				wp_add_inline_script( 'lt-texts', '(function(m){var o=Object.prototype.hasOwnProperty;function x(s){var k=(s||"").replace(/\s+/g," ").trim();return k&&o.call(m,k)?s.replace(s.trim(),function(){return m[k];}):null;}'
-					. 'function n(t){var r=x(t.nodeValue);if(r!==null&&r!==t.nodeValue)t.nodeValue=r;}'
-					. 'function a(el){["placeholder","aria-label","title"].forEach(function(at){var v=el.getAttribute&&el.getAttribute(at);if(v){var r=x(v);if(r!==null&&r!==v)el.setAttribute(at,r);}});if(el.tagName==="INPUT"&&/^(submit|button)$/.test(el.type)){var r=x(el.value);if(r!==null)el.value=r;}}'
-					. 'function w(root){if(root.nodeType===3)return n(root);if(root.nodeType!==1||/^(SCRIPT|STYLE|TEXTAREA)$/.test(root.tagName))return;var it=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null),t;while((t=it.nextNode()))n(t);a(root);root.querySelectorAll("[placeholder],[aria-label],[title],input[type=submit],input[type=button]").forEach(a);}'
-					. 'function go(){w(document.body);new MutationObserver(function(l){l.forEach(function(r){if(r.type==="characterData")n(r.target);else r.addedNodes.forEach(w);});}).observe(document.body,{childList:true,subtree:true,characterData:true});}'
-					. 'document.readyState==="loading"?document.addEventListener("DOMContentLoaded",go):go();})(' . wp_json_encode( $maps['dom'] ) . ');' );
+			add_filter( 'script_loader_tag', array( __CLASS__, 'i18n_tag' ), 0, 2 ); // first, so tag rewriters (CSP nonce, defer…) see it like before
+			$dom = self::dom_map( $router->current_language() );
+			if ( $dom && apply_filters( 'lt_replace_visible_texts', true ) ) {
+				wp_enqueue_script( 'lt-dom-texts', plugins_url( 'assets/js/dom-texts.js', LT_FILE ), array(), LT_VERSION, true );
+				wp_add_inline_script( 'lt-dom-texts', 'window.ltDOMTexts.replace(' . wp_json_encode( $dom ) . ');' );
 			}
 		}
 		// Administrators: note which texts each page asks wp.i18n for (listed in Interface texts › By page).
-		if ( is_user_logged_in() && current_user_can( lt_capability() ) && ! LT_Page_Texts::scan_frame() ) {
-			wp_add_inline_script( 'wp-hooks', '(function(h,u,nc,ty){if(!h||!window.fetch)return;var s={},c=0;function r(k,d,p,t){d=d||"default";if(!s[k]&&c<2000){s[k]={k:k,d:d,p:p||"",t:typeof t==="string"?t:""};c++;}}'
+		if ( is_user_logged_in() && current_user_can( lt_capability() ) && ! LT_Page_Texts::scan_frame() && LT_Page_Texts::enabled() ) {
+			wp_enqueue_script( 'lt-dom-texts', plugins_url( 'assets/js/dom-texts.js', LT_FILE ), array(), LT_VERSION, true );
+			wp_add_inline_script( 'wp-hooks', '(function(h,u,nc,ty){if(!h||!window.fetch)return;var s={},c=0;function r(k,d,p,t){d=d||"default";var id=d+"\u0000"+k;if(!s[id]&&c<2000){s[id]={k:k,d:d,p:p||"",t:typeof t==="string"?t:""};c++;}}'
 				. 'h.addFilter("i18n.gettext","lt/seen",function(t,x,d){r(x,d,"",t);return t;},1);'
 				. 'h.addFilter("i18n.gettext_with_context","lt/seen",function(t,x,ctx,d){r(ctx+"\u0004"+x,d,"",t);return t;},1);'
 				. 'h.addFilter("i18n.ngettext","lt/seen",function(t,x,p,n,d){r(x,d,p,t);return t;},1);'
 				. 'h.addFilter("i18n.ngettext_with_context","lt/seen",function(t,x,p,n,ctx,d){r(ctx+"\u0004"+x,d,p,t);return t;},1);'
 				// Where each text is shown: the element chain (classes) and its position from the top, read in the page.
 				. 'function path(e){var o=[];while(e&&e!==document.body&&o.length<25){var cl=typeof e.className==="string"?e.className.trim().split(/\s+/).slice(0,8).join("."):"";o.unshift(e.tagName.toLowerCase()+(e.id?"#"+e.id.replace(/[.>]/g,""):"")+(cl?"."+cl.replace(/>/g,""):""));e=e.parentElement;}return o.join(">");}'
-				. 'function locate(l){if(!document.body)return;var n=[],w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),x;while((x=w.nextNode())){var pe=x.parentElement;if(!pe||/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(pe.tagName))continue;var v=x.nodeValue.replace(/\s+/g," ").trim().toLowerCase();if(v.length>1)n.push([v,pe,""]);}'
-				. 'document.querySelectorAll("[placeholder],[aria-label]").forEach(function(e){["placeholder","aria-label"].forEach(function(a){var v=e.getAttribute(a);if(v)n.push([v.toLowerCase(),e,a]);});});'
+				. 'function locate(l){if(!window.ltDOMTexts)return;var n=window.ltDOMTexts.collect().map(function(it){return [(it[0]||"").replace(/\s+/g," ").trim().toLowerCase(),it[1],it[2]];});'
 				. 'l.forEach(function(it){var q=(it.t||"").split(/%(?:\d+\$)?[sdfu]|\{[a-z_]+\}/i).sort(function(a,b){return b.length-a.length;})[0];q=(q||"").replace(/\s+/g," ").trim().toLowerCase();delete it.t;if(q.length<2)return;'
 				. 'for(var i=0;i<n.length;i++){if(n[i][0].indexOf(q)!==-1){it.w=path(n[i][1]);it.a=n[i][2];it.o=Math.round(100*i/Math.max(1,n.length-1));break;}}});}'
-				. 'function send(){var l=Object.keys(s).map(function(k){return s[k];});try{locate(l);}catch(e){}if(!l.length)return;s={};var f=new FormData();f.append("action","lt_seen_texts");f.append("nonce",nc);f.append("type",ty);f.append("texts",JSON.stringify(l));fetch(u,{method:"POST",body:f,credentials:"same-origin",keepalive:true}).catch(function(){});}'
-				. 'window.addEventListener("load",function(){setTimeout(send,2500);});document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")send();});'
+				// Texts not on the page yet (validation errors, side cart, messages) stay pending and are located again
+				// when the page changes; only located texts are sent.
+				. 'var sent=0;function send(){var ids=Object.keys(s),l=ids.map(function(k){var o={};for(var p in s[k])o[p]=s[k][p];return o;});try{locate(l);}catch(e){}var out=[];l.forEach(function(it,i){if(it.w){out.push(it);delete s[ids[i]];}});if(!out.length||sent>=20)return;sent++;var f=new FormData();f.append("action","lt_seen_texts");f.append("nonce",nc);f.append("type",ty);f.append("texts",JSON.stringify(out));fetch(u,{method:"POST",body:f,credentials:"same-origin",keepalive:true}).catch(function(){});}'
+				. 'window.addEventListener("load",function(){setTimeout(function(){send();if(window.MutationObserver){var w=null;new MutationObserver(function(){if(!Object.keys(s).length)return;clearTimeout(w);w=setTimeout(send,1500);}).observe(document.body,{childList:true,subtree:true,characterData:true});}},2500);});document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")send();});'
 				. '})(window.wp&&window.wp.hooks,' . wp_json_encode( admin_url( 'admin-ajax.php' ) ) . ',' . wp_json_encode( wp_create_nonce( 'lt_seen_texts' ) ) . ',' . wp_json_encode( LT_Page_Texts::page_type() ) . ');', 'after' );
 		}
 	}

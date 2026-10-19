@@ -2,15 +2,16 @@
  * Texts a visitor sees in a translated page that are still in the original language.
  *
  * The translated page and the same page in the original language are both read as the browser shows them
- * (texts written by PHP AND by JavaScript, placeholders, image descriptions, button labels…): every text found
+ * (texts written by PHP AND by JavaScript, placeholders, tooltips, button labels…): every text found
  * in both is "not translated". Used by:
  *  - Light translations › Scan the site: every public page is opened in the background, in every language;
  *  - "Highlight untranslated texts" (admin bar, ?lt_check=1): the texts are outlined in red on the page itself.
  */
 (function () {
   'use strict';
-  var SKIP = 'script,style,noscript,template,svg,code,pre,textarea,#wpadminbar,#lt-check-bar,#lt-check-detail,.lt-language-switcher-wrap,.lt-menu-switcher-item,.lt-language-switcher-mobile,[data-lt-lang]';
-  var ATTRS = ['placeholder', 'title', 'alt', 'aria-label'];
+  var SKIP = 'script,style,noscript,template,svg,code,pre,#wpadminbar,#lt-check-bar,#lt-check-detail,.lt-language-switcher-wrap,.lt-menu-switcher-item,.lt-language-switcher-mobile,[data-lt-lang],.lt-language-switcher-list,.wd-logo,.site-logo,.custom-logo-link,.edit-link,.post-edit-link,.screen-reader-text,.sr-only,.visually-hidden';
+  var ATTRS = ['placeholder', 'title', 'data-original-title', 'data-bs-original-title'];
+  var CONTROL = 'a,button,input,abbr,.wd-tooltip,.has-tooltip';
 
   function norm(text) { return String(text || '').replace(/\s+/g, ' ').trim(); }
   function key(text) { return norm(text).toLowerCase(); }
@@ -22,9 +23,15 @@
   }
   function hidden(el) {
     if (el.closest('.screen-reader-text,.sr-only,.visually-hidden,[hidden],[aria-hidden="true"]')) return true;
+    if (el.matches('option')) el = el.closest('select') || el; // The option has no rect while its visible select is closed.
     if (!el.getClientRects().length) return true; // display:none, closed menu, popup not opened…
     var view = el.ownerDocument.defaultView;
-    return view && view.getComputedStyle(el).visibility === 'hidden';
+    if (!view) return false;
+    for (var parent = el; parent && parent !== el.ownerDocument.body; parent = parent.parentElement) {
+      var css = view.getComputedStyle(parent);
+      if (css.visibility === 'hidden' || css.visibility === 'collapse' || css.opacity === '0') return true;
+    }
+    return false;
   }
   /** Keep closed interactive UI available for checking, but ignore content disabled everywhere. */
   function belongsToClosedControl(el) {
@@ -38,7 +45,13 @@
     if (!body) return found;
     function add(text, el, how) {
       text = norm(text);
-      if (!el || ignored(text) || el.closest(SKIP)) return;
+      if (!el || ignored(text) || el.closest(SKIP) || (how === 'text' && el.closest('textarea'))) return;
+      // WoodMart hides action text visually, then uses it as the hover tooltip.
+      if (how === 'text' && el.closest('.wd-action-text')) {
+        var action = el.closest('.wd-action-btn,.wd-tooltip');
+        if (action) el = action.querySelector('a,button') || action;
+      }
+      if (el.closest('[aria-hidden="true"]') && !belongsToClosedControl(el)) return;
       if (hidden(el) && !belongsToClosedControl(el)) return;
       var k = key(text);
       if (!found[k]) found[k] = { text: text, els: [], how: how };
@@ -47,9 +60,12 @@
     var walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) add(walker.currentNode.data, walker.currentNode.parentElement, 'text');
     ATTRS.forEach(function (attribute) {
-      body.querySelectorAll('[' + attribute + ']').forEach(function (el) { add(el.getAttribute(attribute), el, attribute); });
+      body.querySelectorAll('[' + attribute + ']').forEach(function (el) {
+        if (attribute === 'placeholder' ? !el.matches('input,textarea') : !el.matches(CONTROL)) return;
+        add(el.getAttribute(attribute), el, attribute);
+      });
     });
-    body.querySelectorAll('input[type=submit][value],input[type=button][value],input[type=reset][value],button[value]').forEach(function (el) { add(el.value, el, 'value'); });
+    body.querySelectorAll('input[type=submit][value],input[type=button][value],input[type=reset][value]').forEach(function (el) { add(el.value, el, 'value'); });
     return found;
   }
 
@@ -176,6 +192,20 @@
         var page = document.createElement('p'); page.textContent = data.labels.foundOn + ': ' + document.title;
         var link = document.createElement('a'); link.className = 'lt-check-open'; link.href = found ? found.url : direct(text); link.textContent = data.labels.translate;
         detail.append(close, wording, origin, page, link);
+        if (data.ignoreNonce) {
+          var ignore = document.createElement('button'); ignore.type = 'button'; ignore.className = 'lt-check-ignore'; ignore.textContent = data.labels.ignore;
+          ignore.style.cssText = 'float:none;font-size:14px;display:block;margin-top:12px;text-align:left';
+          ignore.onclick = async function () {
+            ignore.disabled = true;
+            try {
+              var body = new FormData(); body.append('action', 'lt_site_scan_ignore'); body.append('nonce', data.ignoreNonce); body.append('text', text);
+              var response = await fetch(data.ajax, { method: 'POST', credentials: 'same-origin', body: body });
+              var result = await response.json(); if (!result.success) throw new Error('save');
+              skip[key(text)] = true; detail.hidden = true; run();
+            } catch (e) { ignore.disabled = false; ignore.textContent = data.labels.error; }
+          };
+          detail.appendChild(ignore);
+        }
         var choices = entries.get(element) || [];
         if (choices.length > 1) {
           var select = document.createElement('select'); select.setAttribute('aria-label', data.labels.translate);
@@ -216,6 +246,7 @@
         document.querySelectorAll('.lt-untranslated').forEach(function (el) { el.classList.remove('lt-untranslated'); });
         foundTexts.forEach(function (found) {
           found.els.forEach(function (el) {
+            if (hidden(el)) return;
             el.classList.add('lt-untranslated');
             if (!entries.has(el)) entries.set(el, []);
             entries.get(el).push(found.text);
@@ -233,11 +264,19 @@
       // Texts written later (mini-cart, messages, popups, checkout blocks): checked too.
       var pending = null;
       new MutationObserver(function (mutations) {
-        if (mutations.every(function (m) { return bar.contains(m.target) || detail.contains(m.target); })) return; // our own counter
+        var meaningful = mutations.some(function (m) {
+          if (bar.contains(m.target) || detail.contains(m.target)) return false;
+          if (m.type === 'attributes' && m.attributeName === 'class') {
+            var clean = function (value) { return String(value || '').split(/\s+/).filter(function (name) { return name && name !== 'lt-untranslated'; }).sort().join(' '); };
+            return clean(m.oldValue) !== clean(m.target.className);
+          }
+          return true;
+        });
+        if (!meaningful) return; // ignore our own highlights and counter
         clearTimeout(pending);
         pending = setTimeout(run, 600);
       })
-        .observe(document.body, { childList: true, subtree: true, characterData: true });
+        .observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeOldValue: true, attributeFilter: ['placeholder', 'title', 'data-original-title', 'data-bs-original-title', 'value', 'hidden', 'aria-hidden', 'class'] });
     }).catch(function () { bar.textContent = data.labels.error; });
   }
   if (document.readyState === 'complete') start(); else window.addEventListener('load', start);

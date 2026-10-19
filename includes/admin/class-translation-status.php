@@ -12,6 +12,8 @@ defined( 'ABSPATH' ) || exit;
 class LT_Translation_Status {
 	const PER_PAGE = 50;
 
+	private $view_args = array();
+	private $export_args = array();
 	private static $instance;
 	public static function instance() { return self::$instance ?: ( self::$instance = new self() ); }
 	private function __construct() { add_action( 'admin_menu', array( $this, 'menu' ), 19 ); }
@@ -20,12 +22,15 @@ class LT_Translation_Status {
 
 	private function languages() { $router = LT_Language_Router::instance(); return array_values( array_diff( $router->languages(), array( $router->default_language() ) ) ); }
 
-	private function url( $args = array() ) { return add_query_arg( array_merge( array( 'page' => 'lt-status' ), array_filter( $args, 'strlen' ) ), admin_url( 'admin.php' ) ); }
+	private function url( $args = array() ) {
+		if ( $this->view_args ) unset( $args['group'] );
+		return add_query_arg( array_filter( array_merge( $this->view_args ?: array( 'page' => 'lt-status' ), $args ), 'strlen' ), admin_url( 'admin.php' ) );
+	}
 
 	/** Content is separated by what it belongs to; collected interface texts stay with their source screens. */
 	private function groups( $source = '' ) {
 		$groups = LT_Content_Catalog::groups();
-		unset( $groups['string'], $groups['post:product_variation'] );
+		unset( $groups['string'], $groups['email'], $groups['post:product_variation'] );
 		if ( '' === $source ) return $groups;
 		foreach ( $groups as $group => $label ) {
 			if ( $this->group_source( $group ) !== $source ) unset( $groups[ $group ] );
@@ -84,13 +89,13 @@ class LT_Translation_Status {
 					$block = LT_Content_Catalog::item( $ref[0], $ref[1] );
 					if ( $block && $block['fields'] ) foreach ( LT_Content_Catalog::item_progress( $block, $languages ) as $language => $p ) foreach ( array( 'translated', 'outdated', 'missing' ) as $k ) $counts[ $language ][ $k ] += $p[ $k ];
 				}
-				foreach ( $languages as $language ) foreach ( $extras['texts'] as $field => $text ) $counts[ $language ][ null !== LT_Translation_Store::string_lookup( $language, $field, $text[0] ) ? 'translated' : 'missing' ]++;
+				foreach ( $languages as $language ) foreach ( $extras['texts'] as $field => $text ) $counts[ $language ][ null !== LT_Translation_Store::string_lookup( $language, $field, $text[0] ) || null !== LT_Translation_Store::by_text( $language, $text[0] ) ? 'translated' : 'missing' ]++;
 			}
 			$states = array();
 			foreach ( $counts as $language => $p ) {
 				$states[ $language ] = array( 'state' => $p['missing'] ? 'todo' : ( $p['outdated'] ? 'update' : 'done' ), 'done' => $p['translated'], 'total' => $p['translated'] + $p['outdated'] + $p['missing'] );
 			}
-			$rows[ (int) $id ] = array( 'group' => $group, 'id' => (int) $id, 'item' => array( 'edit' => $item['edit'], 'block_editor' => $item['block_editor'] ), 'title' => (string) $item['title'], 'states' => $states, 'parent' => 0, 'bucket' => '', 'children' => array(), 'unread' => $extras && ! $extras['read'] );
+			$rows[ (int) $id ] = array( 'group' => $group, 'id' => (int) $id, 'item' => array( 'edit' => $item['edit'], 'block_editor' => $item['block_editor'] ), 'title' => (string) $item['title'], 'search' => implode( ' ', $item['fields'] ), 'states' => $states, 'parent' => 0, 'bucket' => '', 'children' => array(), 'unread' => $extras && ! $extras['read'] );
 		}
 		return $rows;
 	}
@@ -124,11 +129,7 @@ class LT_Translation_Status {
 	 * @return array Units (one per top-level line): row + its variations, its heading (category / menu) and depth.
 	 */
 	private function organise( $group, $languages ) {
-		// The list (titles, order, headings) is kept until an item of this type is added, moved or renamed;
-		// a saved translation only refreshes the states, read from the cached counts.
-		$cache_key = 'lt_list_' . md5( LT_VERSION . '|' . $group . '|' . implode( ',', $languages ) . '|' . determine_locale() . '|' . get_current_user_id() . '|' . LT_Content_Catalog::list_revision( $group ) );
-		$cached = get_transient( $cache_key );
-		if ( is_array( $cached ) ) return $this->fresh_states( $group, $cached, $languages );
+		// Build the current list on demand; WordPress object priming keeps its reads batched.
 		list( $kind, $name ) = array_pad( explode( ':', $group, 2 ), 2, '' );
 		$rows = $this->rows( $group, LT_Content_Catalog::item_ids( $group ), $languages );
 
@@ -166,30 +167,6 @@ class LT_Translation_Status {
 		}
 		foreach ( $units as &$unit ) $unit['state'] = $this->worst( array_merge( array( $unit['row'] ), $unit['row']['children'] ) );
 		unset( $unit );
-		set_transient( $cache_key, $units, HOUR_IN_SECONDS );
-		return $units;
-	}
-
-	/** Current state of every line, from the counts kept up to date item by item (pages also count what is shown inside: kept as built). */
-	private function fresh_states( $group, $units, $languages ) {
-		if ( 'post:page' === $group ) return $units;
-		$states = array();
-		$apply  = function( &$row ) use ( &$states, $languages ) {
-			if ( ! isset( $states[ $row['group'] ] ) ) $states[ $row['group'] ] = LT_Content_Catalog::item_states( $row['group'], $languages );
-			$counts = $states[ $row['group'] ][ $row['id'] ] ?? null;
-			if ( ! is_array( $counts ) ) return;
-			foreach ( $languages as $language ) {
-				list( $translated, $outdated, $missing ) = $counts[ $language ] ?? array( 0, 0, 0 );
-				$row['states'][ $language ] = array( 'state' => $missing ? 'todo' : ( $outdated ? 'update' : 'done' ), 'done' => $translated, 'total' => $translated + $outdated + $missing );
-			}
-		};
-		foreach ( $units as &$unit ) {
-			$apply( $unit['row'] );
-			foreach ( $unit['row']['children'] as &$child ) $apply( $child );
-			unset( $child );
-			$unit['state'] = $this->worst( array_merge( array( $unit['row'] ), $unit['row']['children'] ) );
-		}
-		unset( $unit );
 		return $units;
 	}
 
@@ -203,13 +180,12 @@ class LT_Translation_Status {
 		return $terms[0]->name;
 	}
 
-	/** What is left per type, for the left column (cached summary, refreshed when a translation is saved). */
-	private function todo_by_group( $languages, $groups = null ) {
+	/** What is left per type, calculated when the administrator opens this view. */
+	public function todo_by_group( $languages, $groups = null ) {
 		$out = array();
 		foreach ( LT_Content_Catalog::summary( $languages, false, $groups ) as $group => $data ) {
-			$complete = $data['items'];
-			foreach ( $data['languages'] as $l ) $complete = min( $complete, $l['complete_items'] );
-			$out[ $group ] = array( 'items' => $data['items'], 'todo' => $data['items'] - $complete );
+			// Union across languages, calculated from the current items by summary().
+			$out[ $group ] = array( 'items' => $data['items'], 'todo' => $data['incomplete_items'] ?? 0 );
 		}
 		return $out;
 	}
@@ -221,6 +197,7 @@ class LT_Translation_Status {
 		$config = array(
 			'ajax'  => admin_url( 'admin-ajax.php' ),
 			'nonce' => wp_create_nonce( 'lt_panel' ),
+			'view' => $this->view_args ?: array( 'page' => 'lt-status', 'group' => sanitize_text_field( wp_unslash( $_GET['group'] ?? '' ) ) ),
 			'lang'  => in_array( sanitize_key( $_GET['lang'] ?? '' ), $languages, true ) ? sanitize_key( $_GET['lang'] ) : $languages[0],
 			'i18n'  => array(
 				'loading' => __( 'Loading…', 'lightweight-translation' ),
@@ -289,9 +266,48 @@ class LT_Translation_Status {
 		$this->assets( $languages );
 	}
 
+	/** The same list, progress, CSV tools and drawer for shop texts and e-mails. */
+	public function render_embedded( $type, $label, $ids, $view_args, $export_args = array() ) {
+		$languages = $this->languages();
+		if ( ! $languages ) return;
+		$this->view_args = $view_args;
+		$this->export_args = $export_args;
+		$units = array();
+		foreach ( $this->rows( $type, $ids, $languages ) as $row ) $units[] = array( 'row' => $row, 'depth' => 0, 'parent_title' => '', 'state' => $this->worst( array( $row ) ) );
+		echo '<div class="lt-status">';
+		$this->type_view( $type, $label, $languages, $units );
+		echo '<div class="lt-drawer" hidden><div class="lt-drawer-bg"></div><div class="lt-drawer-box" role="dialog" aria-modal="true"></div></div></div>';
+		$this->assets( $languages );
+		$this->view_args = array();
+		$this->export_args = array();
+	}
+
+	/** Reuse the product translation drawer with a custom, grouped admin list. */
+	public function render_drawer( $view_args ) {
+		$languages = $this->languages();
+		if ( ! $languages ) return;
+		$this->view_args = $view_args;
+		echo '<div class="lt-drawer" hidden><div class="lt-drawer-bg"></div><div class="lt-drawer-box" role="dialog" aria-modal="true"></div></div>';
+		$this->assets( $languages );
+		$this->view_args = array();
+	}
+
+	/** Header counts from the same cached rows as the catalogue list (including variations). */
+	public function group_progress( $group, $languages ) {
+		$out = array( 'total' => 0, 'translated' => array() );
+		if ( ! isset( $this->groups()[ $group ] ) ) return $out;
+		foreach ( $this->organise( $group, $languages ) as $unit ) {
+			foreach ( array_merge( array( $unit['row'] ), $unit['row']['children'] ) as $row ) {
+				$out['total']++;
+				foreach ( $languages as $language ) if ( 'done' === $row['states'][ $language ]['state'] ) $out['translated'][ $language ] = ( $out['translated'][ $language ] ?? 0 ) + 1;
+			}
+		}
+		return $out;
+	}
+
 	/** Right side: one content type, organised. */
-	private function type_view( $type, $label, $languages ) {
-		$units  = $this->organise( $type, $languages );
+	private function type_view( $type, $label, $languages, $units = null ) {
+		if ( null === $units ) $units = $this->organise( $type, $languages );
 		$search = isset( $_GET['s'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['s'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 		if ( ! empty( $_GET['todo'] ) ) $status = 'todo'; // phpcs:ignore WordPress.Security.NonceVerification -- old links
@@ -307,8 +323,8 @@ class LT_Translation_Status {
 		foreach ( $languages as $language ) {
 			$done = 0;
 			foreach ( $all_rows as $row ) if ( 'done' === $row['states'][ $language ]['state'] ) $done++;
-			$pct = $all_rows ? (int) floor( 100 * $done / count( $all_rows ) ) : 100;
-			echo '<div><strong>' . esc_html( LT_Language_Router::flag( $language ) . ' ' . LT_Language_Router::language_label( $language ) ) . '</strong><span class="lt-bar"><i style="width:' . (int) $pct . '%"></i></span>' . esc_html( sprintf( __( '%1$d / %2$d translated', 'lightweight-translation' ), $done, count( $all_rows ) ) ) . '</div>';
+			$pct = $all_rows ? (int) floor( 100 * $done / count( $all_rows ) ) : 0;
+			echo '<div data-lt-language="' . esc_attr( $language ) . '"><strong>' . esc_html( LT_Language_Router::flag( $language ) . ' ' . LT_Language_Router::language_label( $language ) ) . '</strong><span class="lt-bar"><i style="width:' . (int) $pct . '%"></i></span><span class="lt-progress-text">' . esc_html( $all_rows ? sprintf( __( '%1$d / %2$d translated', 'lightweight-translation' ), $done, count( $all_rows ) ) : __( 'No texts collected yet', 'lightweight-translation' ) ) . '</span></div>';
 		}
 		echo '</div></div>';
 		if ( $next ) echo '<button type="button" class="button button-primary lt-open" data-group="' . esc_attr( $next['group'] ) . '" data-id="' . (int) $next['id'] . '">' . esc_html__( 'Start translating', 'lightweight-translation' ) . ' →</button>';
@@ -316,7 +332,7 @@ class LT_Translation_Status {
 
 		// Import / export of this list as a table (CSV for Excel, Google Sheets or an AI), right here.
 		$export_groups = 'post:product' === $type ? array( $type, 'post:product_variation' ) : array( $type );
-		$export        = add_query_arg( array( 'action' => 'lt_export', 'groups' => $export_groups, 'only' => 'todo', '_wpnonce' => wp_create_nonce( 'lt_export' ) ), admin_url( 'admin-post.php' ) );
+		$export        = add_query_arg( array_merge( array( 'action' => 'lt_export', 'groups' => $export_groups, 'only' => 'todo', '_wpnonce' => wp_create_nonce( 'lt_export' ) ), $this->export_args ), admin_url( 'admin-post.php' ) );
 		echo '<details class="lt-io"><summary><span class="dashicons dashicons-media-spreadsheet"></span> ' . esc_html__( 'Translate as a table: export / import (Excel, Google Sheets, ChatGPT…)', 'lightweight-translation' ) . '</summary><div class="lt-io-body">';
 		echo '<div><h4>1. ' . esc_html__( 'Export', 'lightweight-translation' ) . '</h4><p><a class="button" href="' . esc_url( $export ) . '">' . esc_html( sprintf( __( 'Download everything left to translate in “%s”', 'lightweight-translation' ), $label ) ) . '</a></p><p class="description">' . esc_html__( 'Or tick lines below and choose “Export for AI translation” in the bulk actions. One row per text: fill the “translated_text” column.', 'lightweight-translation' ) . '</p></div>';
 		echo '<div><h4>2. ' . esc_html__( 'Import', 'lightweight-translation' ) . '</h4><form method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
@@ -329,6 +345,7 @@ class LT_Translation_Status {
 		if ( '' !== $search ) {
 			$units = array_values( array_filter( $units, function( $unit ) use ( $search, &$open ) {
 				if ( false !== mb_stripos( wp_strip_all_tags( $unit['row']['title'] ), $search ) ) return true;
+				if ( ! empty( $unit['row']['search'] ) && false !== mb_stripos( $unit['row']['search'], $search ) ) return true;
 				foreach ( $unit['row']['children'] as $child ) if ( false !== mb_stripos( wp_strip_all_tags( $child['title'] ), $search ) ) { $open[ $unit['row']['id'] ] = true; return true; }
 				return false;
 			} ) );
@@ -347,12 +364,16 @@ class LT_Translation_Status {
 
 		if ( $status ) $units = array_values( array_filter( $units, function( $unit ) use ( $status ) { return $unit['state'] === $status; } ) );
 		$total = count( $units );
-		$pages = max( 1, (int) ceil( $total / self::PER_PAGE ) );
+		// A geography detail contains only one country: show all of its regions together.
+		$per_page = 'geography' === ( $this->view_args['area'] ?? '' ) && ! empty( $this->view_args['geo_country'] ) ? max( 1, $total ) : self::PER_PAGE;
+		$pages = max( 1, (int) ceil( $total / $per_page ) );
 		$heading_size = array();
 		foreach ( $units as $unit ) $heading_size[ $unit['row']['bucket'] ] = ( $heading_size[ $unit['row']['bucket'] ] ?? 0 ) + 1;
-		$units = array_slice( $units, ( min( $paged, $pages ) - 1 ) * self::PER_PAGE, self::PER_PAGE );
+		$units = array_slice( $units, ( min( $paged, $pages ) - 1 ) * $per_page, $per_page );
 
-		echo '<form method="get" class="lt-search-form"><input type="hidden" name="page" value="lt-status"><input type="hidden" name="group" value="' . esc_attr( $type ) . '">' . ( $status ? '<input type="hidden" name="status" value="' . esc_attr( $status ) . '">' : '' );
+		echo '<form method="get" class="lt-search-form">';
+		foreach ( $this->view_args ?: array( 'page' => 'lt-status', 'group' => $type ) as $key => $value ) echo '<input type="hidden" name="' . esc_attr( $key ) . '" value="' . esc_attr( $value ) . '">';
+		if ( $status ) echo '<input type="hidden" name="status" value="' . esc_attr( $status ) . '">';
 		echo '<p class="search-box"><label class="screen-reader-text" for="lt-search">' . esc_html__( 'Search', 'lightweight-translation' ) . '</label><input type="search" id="lt-search" name="s" value="' . esc_attr( $search ) . '" placeholder="' . esc_attr( sprintf( __( 'Search in %s…', 'lightweight-translation' ), $label ) ) . '"> <input type="submit" class="button" value="' . esc_attr__( 'Search', 'lightweight-translation' ) . '"></p></form>';
 
 		// Bulk actions (POST to admin-post.php).
@@ -404,6 +425,7 @@ class LT_Translation_Status {
 	/** Fresh markup of one line (and its variations), after a save in the panel. */
 	public function row_markup( $group, $id, $depth = 0 ) {
 		$languages = $this->languages();
+		if ( 'geo' === $group ) return LT_WooCommerce_Text_Groups::geography_row_markup( $id, $languages );
 		$rows      = $this->rows( $group, array( (int) $id ), $languages );
 		if ( ! $rows ) return '';
 		if ( 'post:product' === $group ) $this->attach_variations( $rows, $languages );

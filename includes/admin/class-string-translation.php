@@ -18,6 +18,9 @@ class LT_String_Translation {
 
 	private $slug   = 'lt-strings'; // admin page being shown
 	private $all    = null;         // field key => original text
+	private $progress = null;     // grouped, visible wordings; built once on admin screens only
+	private $word_values = array();
+	private $word_keys = null;
 	private $shared = array();      // keys hidden because WooCommerce / the theme has the same text
 
 	private function __construct() {
@@ -107,7 +110,7 @@ class LT_String_Translation {
 		$table     = LT_Translation_Store::table();
 		$languages = $this->languages();
 		$index     = $this->index();
-		$where     = "object_type='string' AND object_id=0";
+		$where     = "object_type='string' AND object_id=0 AND TRIM(source_text) <> ''";
 		$params    = array();
 		$source    = $args['source'];
 		$keys      = null;
@@ -122,6 +125,8 @@ class LT_String_Translation {
 		if ( 'emails' === $args['kind'] ) $restrict( array_keys( array_filter( $index, function( $e ) { return ! empty( $e['e'] ); } ) ) );
 		if ( null !== ( $args['keys'] ?? null ) ) $restrict( $args['keys'] );
 		if ( $args['seen'] ) $restrict( array_keys( (array) get_option( 'lt_string_seen', array() ) ) );
+		$admin_keys = array_keys( array_filter( $index, array( 'LT_Code_Scanner', 'admin_only' ) ) );
+		if ( $admin_keys ) $where .= ' AND NOT ' . $this->in_keys( $admin_keys );
 		$ignored = array_keys( array_filter( $index, function( $e ) { return ! empty( $e['x'] ); } ) );
 		if ( $args['ignored'] ) $restrict( $ignored );
 		elseif ( $ignored ) $where .= ' AND NOT ' . $this->in_keys( $ignored );
@@ -130,14 +135,17 @@ class LT_String_Translation {
 			$where .= ' AND ' . $this->in_keys( $keys );
 		}
 		if ( '' !== $args['search'] ) { $where .= ' AND (source_text LIKE %s OR translated_text LIKE %s)'; $like = '%' . $wpdb->esc_like( $args['search'] ) . '%'; $params[] = $like; $params[] = $like; }
-		$having = '';
+		// Use the same published wording lookup as the progress badges and the public site.
+		// An alias in another context can already supply the translation of this wording.
 		if ( $args['todo'] && $languages ) {
-			$having = ' HAVING COUNT(DISTINCT CASE WHEN status IN (\'translated\',\'reviewed\') AND translated_text <> \'\' AND language_code IN (' . implode( ',', array_fill( 0, count( $languages ), '%s' ) ) . ') THEN language_code END) < %d';
-			$params = array_merge( $params, $languages, array( count( $languages ) ) );
+			$pending = array();
+			$candidates = null === $keys ? $this->all_texts() : array_intersect_key( $this->all_texts(), array_fill_keys( $keys, true ) );
+			foreach ( $candidates as $field => $text ) if ( count( $this->word_translations( $text, $field ) ) < count( $languages ) ) $pending[] = $field;
+			if ( ! $pending ) return array( array(), array(), 0 );
+			$where .= ' AND ' . $this->in_keys( $pending );
 		}
-		// The same original text used in several places (plugins, contexts, added by hand…) is ONE line:
-		// translated once, saved everywhere it is used.
-		$inner = "SELECT MIN(field_key) AS field_key, GROUP_CONCAT(DISTINCT field_key) AS group_keys, MAX(source_text) AS source, MIN(id) AS first_id FROM $table WHERE $where GROUP BY BINARY TRIM(source_text)" . $having;
+		// Each key retains its domain and context, so equal wording from different plugins stays editable.
+		$inner = "SELECT field_key, field_key AS group_keys, MAX(source_text) AS source, MIN(id) AS first_id FROM $table WHERE $where GROUP BY field_key";
 		if ( isset( $args['sort'] ) && is_array( $args['sort'] ) ) {
 			// Texts of one page (a few hundred at most): sorted here, in page order / A → Z / by plugin.
 			$rows  = (array) $wpdb->get_results( $params ? $wpdb->prepare( $inner, $params ) : $inner ); // phpcs:ignore WordPress.DB
@@ -163,6 +171,7 @@ class LT_String_Translation {
 			foreach ( $found as $row ) if ( in_array( $row->status, LT_Translation_Store::LIVE_STATUSES, true ) && '' !== (string) $row->translated_text ) $by_key[ $row->field_key ][ $row->language_code ] = $row->translated_text;
 			foreach ( $rows as $row ) foreach ( $row->keys as $key ) foreach ( (array) ( $by_key[ $key ] ?? array() ) as $language => $text ) if ( ! isset( $translations[ $row->field_key ][ $language ] ) ) $translations[ $row->field_key ][ $language ] = $text;
 		}
+		foreach ( $rows as $row ) foreach ( $this->word_translations( $row->source, $row->field_key ) as $language => $value ) $translations[ $row->field_key ][ $language ] = $value;
 		return array( $rows, $translations, $total );
 	}
 
@@ -246,8 +255,8 @@ class LT_String_Translation {
 		$sub   = isset( $_GET['sub'] ) ? sanitize_key( $_GET['sub'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 		$group = 'plugins' === $section ? ( isset( $_GET['group'] ) ? sanitize_text_field( wp_unslash( $_GET['group'] ) ) : '' ) : $section; // phpcs:ignore WordPress.Security.NonceVerification
 		if ( 'plugins' !== $section && ! in_array( $sub, array( 'texts', 'settings', 'widgets', 'emails' ), true ) ) $sub = 'texts';
-		$this->styles();
-		echo '<div class="wrap">';
+		if ( 'woocommerce' !== $section ) $this->styles();
+		echo '<div class="wrap' . ( 'woocommerce' === $section ? ' lt-status' : '' ) . '">';
 		if ( 'plugins' === $section ) LT_Sources::header( $section, $sub );
 		else echo '<h1>' . esc_html( 'woocommerce' === $section ? 'WooCommerce' : __( 'Theme', 'lightweight-translation' ) ) . '</h1>';
 		if ( isset( $_GET['lt_notice'] ) ) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( wp_unslash( $_GET['lt_notice'] ) ) . '</p></div>'; // phpcs:ignore WordPress.Security.NonceVerification
@@ -257,7 +266,7 @@ class LT_String_Translation {
 			echo '<div class="lt-layout"><aside class="lt-side" aria-label="' . esc_attr__( 'Plugins', 'lightweight-translation' ) . '">';
 			$this->section_sidebar( $section, $sub, $group );
 			echo '</aside><div class="lt-main">';
-			echo '<p class="description" style="margin:0 0 12px">' . esc_html__( 'Texts specific to other installed plugins are listed here. WooCommerce and the active theme have their own sections; when an extension reuses their texts, its translation is shared there.', 'lightweight-translation' ) . '</p>';
+			echo '<p class="description" style="margin:0 0 12px">' . esc_html__( 'Texts from installed plugins are listed by source. Equal wording from different plugins can have separate translations.', 'lightweight-translation' ) . '</p>';
 			echo '<p><a class="button" href="' . esc_url( admin_url( 'admin.php?page=lt-strings&tab=find#lt-plugin-scan' ) ) . '">' . esc_html__( 'Find texts in an installed plugin', 'lightweight-translation' ) . '</a></p>';
 			$this->sources_table( false, true );
 			echo '</div></div></div>';
@@ -269,10 +278,10 @@ class LT_String_Translation {
 			$this->section_sidebar( $section, $sub, $group );
 			echo '</aside><div class="lt-main">';
 		}
-		if ( 'plugins' === $section ) echo '<h2 style="margin:0 0 8px">' . esc_html( LT_Sources::label( $group ) ) . '</h2>';
 		$help = array(
 			'woocommerce:texts'    => __( 'Buttons, cart, checkout, account, notices and messages written by WooCommerce.', 'lightweight-translation' ),
 			'woocommerce:settings' => __( 'Texts typed in the WooCommerce settings: payment and shipping methods, store notice, checkout terms.', 'lightweight-translation' ),
+			'woocommerce:emails'   => __( 'Subject, heading and additional content of each customer e-mail. Body texts are in Buttons & messages › Customer e-mails.', 'lightweight-translation' ),
 			'theme:texts'          => __( 'Texts written by the theme and its companion plugin (header, footer, product page, popups…).', 'lightweight-translation' ),
 			'theme:settings'       => __( 'Texts typed in the theme options: copyright, cookie notice, empty cart text…', 'lightweight-translation' ),
 			'theme:widgets'        => __( 'Titles and texts of the widgets of your sidebars and footer.', 'lightweight-translation' ),
@@ -297,18 +306,21 @@ class LT_String_Translation {
 	private function section_sidebar( $section, $sub, $group = '' ) {
 		if ( 'plugins' === $section ) {
 			echo '<h4>' . esc_html__( 'Plugins', 'lightweight-translation' ) . '</h4>';
-			echo '<a class="lt-place' . ( '' === $group ? ' is-active' : '' ) . '" href="' . esc_url( admin_url( 'admin.php?page=lt-plugins' ) ) . '"' . ( '' === $group ? ' aria-current="page"' : '' ) . '><span>' . esc_html__( 'All plugins', 'lightweight-translation' ) . '</span></a>';
 			$items = array();
-			foreach ( $this->index() as $field => $entry ) {
-				$source = LT_Sources::group_of( $field, $entry );
-				if ( 0 === strpos( $source, 'plugin:' ) ) $items[ $source ] = LT_Sources::label( $source );
+			$data = $this->sources_data();
+			$total = array( 'total' => 0, 'todo' => 0 );
+			foreach ( $data as $source => $counts ) if ( 0 === strpos( $source, 'plugin:' ) && ( $counts['total'] || $counts['shared'] ) ) {
+				$items[ $source ] = LT_Sources::label( $source );
+				$total['total'] += $counts['total'];
+				$total['todo'] += $counts['todo'];
 			}
+			echo '<a class="lt-place' . ( '' === $group ? ' is-active' : '' ) . '" href="' . esc_url( admin_url( 'admin.php?page=lt-plugins' ) ) . '"' . ( '' === $group ? ' aria-current="page"' : '' ) . '><span>' . esc_html__( 'All plugins', 'lightweight-translation' ) . '</span>' . LT_Admin_Navigation::progress_badge( $total ) . '</a>';
 			if ( $group && 0 === strpos( $group, 'plugin:' ) && ! isset( $items[ $group ] ) ) $items[ $group ] = LT_Sources::label( $group );
 			uasort( $items, 'strcasecmp' );
 			if ( ! $items ) echo '<p class="lt-side-foot">' . esc_html__( 'No other plugin texts have been collected yet. Use “Find texts in an installed plugin” to detect them.', 'lightweight-translation' ) . '</p>';
 			foreach ( $items as $source => $label ) {
 				$link = LT_Sources::url( $source );
-				echo '<a class="lt-place' . ( $source === $group ? ' is-active' : '' ) . '" href="' . esc_url( $link ) . '"' . ( $source === $group ? ' aria-current="page"' : '' ) . '><span>' . esc_html( $label ) . '</span></a>';
+				echo '<a class="lt-place' . ( $source === $group ? ' is-active' : '' ) . '" href="' . esc_url( $link ) . '"' . ( $source === $group ? ' aria-current="page"' : '' ) . '><span>' . esc_html( $label ) . '</span>' . LT_Admin_Navigation::progress_badge( $data[ $source ] ?? array() ) . '</a>';
 			}
 			return;
 		}
@@ -328,48 +340,58 @@ class LT_String_Translation {
 			if ( 'theme' === $group && ! empty( $target['active'] ) ) $targets[] = array( 'key' => $key, 'label' => $target['label'] );
 		}
 		if ( ! $targets ) return;
-		echo '<div class="notice notice-info inline"><p>' . esc_html__( 'Some older theme texts do not have a saved file location yet, so they appear under Other theme texts.', 'lightweight-translation' ) . ' <button type="button" class="button" id="lt-theme-location-refresh">' . esc_html__( 'Find their theme areas', 'lightweight-translation' ) . '</button> <span id="lt-theme-location-status" aria-live="polite"></span><br><span class="description">' . esc_html__( 'This reads the active theme and its companion plugin in the background. Existing translations are preserved.', 'lightweight-translation' ) . '</span></p></div>';
+		echo '<div class="notice notice-info inline"><p>' . esc_html__( 'Some older theme texts have no saved file location. Scan the theme to classify them more precisely.', 'lightweight-translation' ) . ' <button type="button" class="button" id="lt-theme-location-refresh">' . esc_html__( 'Find their theme areas', 'lightweight-translation' ) . '</button> <span id="lt-theme-location-status" aria-live="polite"></span><br><span class="description">' . esc_html__( 'This reads the active theme and its companion plugin in the background. Existing translations are preserved.', 'lightweight-translation' ) . '</span></p></div>';
 		$config = array( 'ajax' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'lt_scan_code' ), 'targets' => $targets, 'error' => __( 'Could not refresh theme locations. Try again from the same page.', 'lightweight-translation' ), 'done' => __( 'Theme locations updated. Reloading…', 'lightweight-translation' ) );
 		echo '<script>(function(){var b=document.getElementById("lt-theme-location-refresh"),st=document.getElementById("lt-theme-location-status"),c=' . wp_json_encode( $config ) . ';if(!b)return;var i=0;b.addEventListener("click",function(){b.disabled=true;function step(offset){var t=c.targets[i];st.textContent=t.label+"… "+offset;fetch(c.ajax,{method:"POST",credentials:"same-origin",body:new URLSearchParams({action:"lt_scan_code",nonce:c.nonce,target:t.key,offset:offset,mode:"all"})}).then(function(r){return r.json();}).then(function(r){if(!r.success)throw new Error();if(!r.data.done)return step(r.data.offset);i++;if(i<c.targets.length)return step(0);st.textContent=c.done;window.location.reload();}).catch(function(){st.textContent=c.error;b.disabled=false;});}step(0);});})();</script>';
 	}
 
 	/** Stable location filter shared by theme text lists, based on the source file path. */
 	public static function theme_areas() {
-		return array(
+		return apply_filters( 'lt_theme_text_areas', array(
 			'header' => __( 'Header & navigation', 'lightweight-translation' ),
 			'footer' => __( 'Footer', 'lightweight-translation' ),
+			'search' => __( 'Search & filters', 'lightweight-translation' ),
 			'catalog' => __( 'Shop & catalog', 'lightweight-translation' ),
 			'product' => __( 'Product page', 'lightweight-translation' ),
 			'cart' => __( 'Cart', 'lightweight-translation' ),
 			'checkout' => __( 'Checkout', 'lightweight-translation' ),
 			'account' => __( 'Customer account', 'lightweight-translation' ),
+			'gallery' => __( 'Sliders & galleries', 'lightweight-translation' ),
+			'blog' => __( 'Blog & posts', 'lightweight-translation' ),
 			'layout' => __( 'Layouts & blocks', 'lightweight-translation' ),
 			'popup' => __( 'Popups & banners', 'lightweight-translation' ),
 			'widget' => __( 'Widgets', 'lightweight-translation' ),
 			'other' => __( 'Other theme texts', 'lightweight-translation' ),
-		);
+		) );
 	}
 
-	private function theme_area( $entry ) {
+	public function theme_area( $entry, $text = '' ) {
 		$path = strtolower( (string) ( $entry['p'] ?? '' ) );
-		if ( preg_match( '#footer|copyright#', $path ) ) return 'footer';
-		if ( preg_match( '#header|navigation|mega.?menu|menu/#', $path ) ) return 'header';
-		if ( preg_match( '#checkout#', $path ) ) return 'checkout';
-		if ( preg_match( '#cart|mini.?cart#', $path ) ) return 'cart';
-		if ( preg_match( '#myaccount|my-account|account#', $path ) ) return 'account';
-		if ( preg_match( '#single.product|product.page|product-page|product/#', $path ) ) return 'product';
-		if ( preg_match( '#archive|catalog|shop|category|loop/#', $path ) ) return 'catalog';
-		if ( preg_match( '#widget#', $path ) ) return 'widget';
-		if ( preg_match( '#popup|banner|floating#', $path ) ) return 'popup';
-		if ( preg_match( '#layout|block|template|builder|section#', $path ) ) return 'layout';
-		return 'other';
+		$area = 'other';
+		if ( preg_match( '#footer|copyright#', $path ) ) $area = 'footer';
+		elseif ( preg_match( '#header|navigation|mega.?menu|(?:^|/)menu/|sticky.?nav#', $path ) ) $area = 'header';
+		elseif ( preg_match( '#checkout#', $path ) ) $area = 'checkout';
+		elseif ( preg_match( '#mini.?cart|(?:^|/)cart(?:/|[-.])#', $path ) ) $area = 'cart';
+		elseif ( preg_match( '#myaccount|my-account|account#', $path ) ) $area = 'account';
+		elseif ( preg_match( '#single.product|product.page|product-page|(?:^|/)product/|reviews?#', $path ) ) $area = 'product';
+		elseif ( preg_match( '#search|filters?#', $path ) ) $area = 'search';
+		elseif ( preg_match( '#archive|catalog|shop|category|(?:^|/)loop/|woocommerce#', $path ) ) $area = 'catalog';
+		elseif ( preg_match( '#widget#', $path ) ) $area = 'widget';
+		elseif ( preg_match( '#popup|banner|floating#', $path ) ) $area = 'popup';
+		elseif ( preg_match( '#gallery|carousel|slider|swiper|photoswipe#', $path ) ) $area = 'gallery';
+		elseif ( preg_match( '#(?:^|/)(?:blog|posts?|article|comments?)(?:/|[-.])#', $path ) ) $area = 'blog';
+		elseif ( preg_match( '#layout|block|template|builder|section|shortcode#', $path ) ) $area = 'layout';
+		return apply_filters( 'lt_theme_text_area', $area, $entry, (string) $text );
 	}
 
 	public function theme_area_filter( $args ) {
 		if ( 'theme' !== ( $args['group'] ?? '' ) || 'texts' !== ( $args['sub'] ?? '' ) ) return;
 		$current = sanitize_key( $_GET['theme_area'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification
 		echo '<label>' . esc_html__( 'Theme area', 'lightweight-translation' ) . ' <select name="theme_area" onchange="this.form.submit()"><option value="">' . esc_html__( 'All theme areas', 'lightweight-translation' ) . '</option>';
-		foreach ( self::theme_areas() as $key => $label ) echo '<option value="' . esc_attr( $key ) . '"' . selected( $current, $key, false ) . '>' . esc_html( $label ) . '</option>';
+		foreach ( self::theme_areas() as $key => $label ) {
+			if ( $key !== $current && ! $this->source_progress( 'theme', 'texts', $key )['total'] ) continue;
+			echo '<option value="' . esc_attr( $key ) . '"' . selected( $current, $key, false ) . '>' . esc_html( $label ) . '</option>';
+		}
 		echo '</select></label> ';
 	}
 
@@ -378,13 +400,13 @@ class LT_String_Translation {
 		$area = sanitize_key( $_GET['theme_area'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification
 		if ( ! isset( self::theme_areas()[ $area ] ) ) return $args;
 		$keys = array();
-		foreach ( $texts as $field => $text ) if ( 'theme' === LT_Sources::group_of( $field, $index[ $field ] ?? array() ) && $this->theme_area( $index[ $field ] ?? array() ) === $area ) $keys[] = $field;
+		foreach ( $texts as $field => $text ) if ( 'theme' === LT_Sources::group_of( $field, $index[ $field ] ?? array() ) && $this->theme_area( $index[ $field ] ?? array(), $text ) === $area ) $keys[] = $field;
 		$args['keys'] = null === $args['keys'] ? $keys : array_values( array_intersect( $args['keys'], $keys ) );
 		return $args;
 	}
 
 	public function theme_area_tag( $tags, $row, $entry, $args ) {
-		if ( 'theme' === ( $args['group'] ?? '' ) && 'texts' === ( $args['sub'] ?? '' ) ) $tags[] = esc_html( self::theme_areas()[ $this->theme_area( $entry ) ] );
+		if ( 'theme' === ( $args['group'] ?? '' ) && 'texts' === ( $args['sub'] ?? '' ) ) $tags[] = esc_html( self::theme_areas()[ $this->theme_area( $entry, $row->source ?? '' ) ] );
 		return $tags;
 	}
 
@@ -396,7 +418,7 @@ class LT_String_Translation {
 	public function theme_export_include( $include, $field, $entry, $request ) {
 		if ( ! $include || 'theme' !== ( $request['string_group'] ?? '' ) ) return $include;
 		$area = sanitize_key( $request['string_theme_area'] ?? '' );
-		return ! isset( self::theme_areas()[ $area ] ) || $this->theme_area( (array) $entry ) === $area;
+		return ! isset( self::theme_areas()[ $area ] ) || $this->theme_area( (array) $entry, $this->all_texts()[ $field ] ?? '' ) === $area;
 	}
 
 	/* ---------- Sources ---------- */
@@ -410,12 +432,9 @@ class LT_String_Translation {
 		return $this->all;
 	}
 
-	/** Originals of the WooCommerce and theme texts: other plugins reusing them share their translation. */
+	/** Domain-specific strings are not hidden merely because another plugin uses the same wording. */
 	private function base_texts() {
-		$index = $this->index();
-		$base  = array();
-		foreach ( $this->all_texts() as $field => $text ) if ( '' !== $text && in_array( LT_Sources::group_of( $field, $index[ $field ] ?? null ), LT_Sources::BASE, true ) ) $base[ $text ] = true;
-		return $base;
+		return array();
 	}
 
 	/** Keys of a source (and of one part of it); with $hide_shared, the texts WooCommerce or the theme already has are left out (in $this->shared). */
@@ -426,34 +445,88 @@ class LT_String_Translation {
 		$this->shared = array();
 		foreach ( $this->all_texts() as $field => $text ) {
 			$entry = $index[ $field ] ?? null;
+			if ( LT_Code_Scanner::admin_only( (array) $entry ) ) continue;
 			if ( LT_Sources::group_of( $field, $entry ) !== $group || ( '' !== $part && LT_Sources::part_of( $entry ) !== $part ) ) continue;
 			if ( isset( $base[ $text ] ) ) $this->shared[] = $field;
 			else $keys[] = $field;
 		}
+		$this->shared = array_values( array_unique( array_intersect_key( $this->all_texts(), array_fill_keys( $this->shared, true ) ) ) );
 		return $keys;
 	}
 
-	/** Numbers of every source: group => [total, shared, translated[lang]]. */
-	private function sources_data() {
-		global $wpdb;
-		$index = $this->index();
-		$base  = $this->base_texts();
-		$done  = array();
-		foreach ( (array) $wpdb->get_results( 'SELECT language_code, field_key FROM ' . LT_Translation_Store::table() . " WHERE object_type='string' AND object_id=0 AND status IN ('translated','reviewed') AND translated_text <> ''" ) as $row ) $done[ $row->language_code ][ $row->field_key ] = true; // phpcs:ignore WordPress.DB
-		$data = array();
-		foreach ( $this->all_texts() as $field => $text ) {
-			$entry = $index[ $field ] ?? null;
-			if ( ! empty( $entry['x'] ) ) continue;
-			$group = LT_Sources::group_of( $field, $entry );
-			if ( ! isset( $data[ $group ] ) ) $data[ $group ] = array( 'total' => 0, 'shared' => 0, 'translated' => array() );
-			if ( ! in_array( $group, LT_Sources::BASE, true ) && isset( $base[ $text ] ) ) { $data[ $group ]['shared']++; continue; }
-			$data[ $group ]['total']++;
-			foreach ( $this->languages() as $language ) if ( isset( $done[ $language ][ $field ] ) ) $data[ $group ]['translated'][ $language ] = ( $data[ $group ]['translated'][ $language ] ?? 0 ) + 1;
+	/** Published translations of one wording, including aliases in other contexts. */
+	private function word_translations( $text, $key = '' ) {
+		$text = trim( (string) $text );
+		if ( '' !== $key ) {
+			$values = array();
+			foreach ( $this->languages() as $language ) {
+				$value = LT_Translation_Store::string_lookup( $language, $key, $text );
+				if ( null !== $value && '' !== trim( $value ) ) $values[ $language ] = $value;
+			}
+			return $values;
 		}
-		// WooCommerce, the theme, the active plugins A → Z, the switched-off ones, WordPress, the rest.
+		if ( isset( $this->word_values[ $text ] ) ) return $this->word_values[ $text ];
+		if ( null === $this->word_keys ) {
+			$this->word_keys = array();
+			foreach ( $this->all_texts() as $field => $source ) $this->word_keys[ $source ][] = $field;
+		}
+		$values = array();
+		foreach ( $this->languages() as $language ) {
+			$value = LT_Translation_Store::by_text( $language, $text );
+			if ( null === $value ) foreach ( $this->word_keys[ $text ] ?? array() as $field ) {
+				$value = LT_Translation_Store::string_lookup( $language, $field, $text );
+				if ( null !== $value && '' !== trim( $value ) ) break;
+			}
+			if ( null !== $value && '' !== trim( $value ) ) $values[ $language ] = $value;
+		}
+		return $this->word_values[ $text ] = $values;
+	}
+
+	/** One snapshot for the sidebar, source table and section header: count domain-specific keys. */
+	public function source_progress( $group, $part = '', $area = '' ) {
+		$this->sources_data();
+		$scope = $area ? 'texts:' . $area : $part;
+		return $this->progress[ $group ][ $scope ] ?? array( 'total' => 0, 'todo' => 0, 'shared' => 0, 'translated' => array() );
+	}
+
+	/** Numbers of every source, excluding ignored/admin texts and plugins' shared base wordings. */
+	private function sources_data() {
+		if ( null !== $this->progress ) return array_map( function( $scopes ) { return $scopes['']; }, $this->progress );
+		$index = $this->index();
+		$base = $this->base_texts();
+		$words = array();
+		$shared = array();
+		foreach ( $this->all_texts() as $field => $text ) {
+			$entry = (array) ( $index[ $field ] ?? array() );
+			if ( '' === $text || ! empty( $entry['x'] ) || LT_Code_Scanner::admin_only( $entry ) ) continue;
+			$group = LT_Sources::group_of( $field, $entry );
+			$part = LT_Sources::part_of( $entry );
+			$scopes = array( '', $part );
+			if ( 'texts' === $part ) {
+				$areas = 'theme' === $group ? array( $this->theme_area( $entry, $text ) ) : ( 'woocommerce' === $group && class_exists( 'LT_WooCommerce_Text_Groups' ) ? LT_WooCommerce_Text_Groups::classify( $field, $entry ) : array() );
+				foreach ( $areas as $area ) $scopes[] = 'texts:' . $area;
+			}
+			foreach ( array_unique( $scopes ) as $scope ) {
+				if ( ! in_array( $group, LT_Sources::BASE, true ) && isset( $base[ $text ] ) ) $shared[ $group ][ $scope ][ $text ] = true;
+				else $words[ $group ][ $scope ][ $field ] = $text;
+			}
+		}
+		$this->progress = array();
+		foreach ( array_unique( array_merge( array_keys( $words ), array_keys( $shared ) ) ) as $group ) {
+			foreach ( array_unique( array_merge( array_keys( $words[ $group ] ?? array() ), array_keys( $shared[ $group ] ?? array() ) ) ) as $scope ) {
+				$data = array( 'total' => count( $words[ $group ][ $scope ] ?? array() ), 'todo' => 0, 'shared' => count( $shared[ $group ][ $scope ] ?? array() ), 'translated' => array() );
+				foreach ( $words[ $group ][ $scope ] ?? array() as $field => $text ) {
+					$values = $this->word_translations( $text, $field );
+					if ( count( $values ) < count( $this->languages() ) ) $data['todo']++;
+					foreach ( $values as $language => $value ) $data['translated'][ $language ] = ( $data['translated'][ $language ] ?? 0 ) + 1;
+				}
+				$this->progress[ $group ][ $scope ] = $data;
+			}
+		}
+		// Same ordering in the plugin sidebar and source table.
 		$rank = function( $group ) { return 'woocommerce' === $group ? 0 : ( 'theme' === $group ? 1 : ( 'wordpress' === $group ? 4 : ( 'other' === $group ? 5 : ( LT_Sources::active( $group ) ? 2 : 3 ) ) ) ); };
-		uksort( $data, function( $a, $b ) use ( $rank ) { return ( $rank( $a ) - $rank( $b ) ) ?: strcasecmp( LT_Sources::label( $a ), LT_Sources::label( $b ) ); } );
-		return $data;
+		uksort( $this->progress, function( $a, $b ) use ( $rank ) { return ( $rank( $a ) - $rank( $b ) ) ?: strcasecmp( LT_Sources::label( $a ), LT_Sources::label( $b ) ); } );
+		return array_map( function( $scopes ) { return $scopes['']; }, $this->progress );
 	}
 
 	/** Table of the sources with their progress per language (Plugins page, Overview & settings). */
@@ -476,8 +549,8 @@ class LT_String_Translation {
 			echo '<tr><td><a href="' . esc_url( $link ) . '"><strong>' . esc_html( LT_Sources::label( $group ) ) . '</strong></a>' . $off . $note . '</td><td>' . esc_html( number_format_i18n( $d['total'] ) ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput
 			foreach ( $languages as $language ) {
 				$n   = $d['translated'][ $language ] ?? 0;
-				$pct = $d['total'] ? floor( 100 * $n / $d['total'] ) : 100;
-				echo '<td><div class="lt-bar"><span style="width:' . esc_attr( $pct ) . '%"></span></div><span class="lt-tag">' . esc_html( $n . ' / ' . $d['total'] ) . '</span></td>';
+				$pct = $d['total'] ? floor( 100 * $n / $d['total'] ) : 0;
+				echo '<td><div class="lt-bar' . ( $d['total'] ? '' : ' is-empty' ) . '"><span style="width:' . esc_attr( $pct ) . '%"></span></div><span class="lt-tag">' . esc_html( $n . ' / ' . $d['total'] ) . '</span></td>';
 			}
 			echo '<td style="white-space:nowrap"><a class="button button-small button-primary" href="' . esc_url( add_query_arg( 'todo', 1, $link ) ) . '">' . esc_html__( 'Translate', 'lightweight-translation' ) . '</a> <a class="button button-small" href="' . esc_url( $this->export_url( '', '', $group ) ) . '">CSV</a></td></tr>';
 		}
@@ -513,7 +586,7 @@ class LT_String_Translation {
 		if ( $common ) { list( $n, $todo ) = $todo_of( array_keys( $common ) ); $link( __( 'Everywhere (header, footer, menus)', 'lightweight-translation' ), array( 'page_type' => 'common' ), $n, $todo ); }
 		foreach ( array_values( array_unique( array_merge( array_keys( $standard ), array_keys( $map ) ) ) ) as $type ) {
 			if ( 'messages' === $type ) continue;
-			if ( ! isset( $map[ $type ] ) ) { echo '<a class="lt-place is-new" href="' . esc_url( $standard[ $type ] ) . '" target="_blank" title="' . esc_attr__( 'Not read yet: open it once (or “Read all pages”)', 'lightweight-translation' ) . '"><span>' . esc_html( LT_Page_Texts::label( $type ) ) . '</span><span class="lt-count">' . esc_html__( 'not read', 'lightweight-translation' ) . ' ↗</span></a>'; continue; }
+			if ( ! isset( $map[ $type ] ) ) { echo '<a class="lt-place is-new" href="' . esc_url( add_query_arg( 'lt_collect', 1, $standard[ $type ] ) ) . '" target="_blank" title="' . esc_attr__( 'Not read yet: open it once (or “Read all pages”)', 'lightweight-translation' ) . '"><span>' . esc_html( LT_Page_Texts::label( $type ) ) . '</span><span class="lt-count">' . esc_html__( 'not read', 'lightweight-translation' ) . ' ↗</span></a>'; continue; }
 			list( $n, $todo ) = $todo_of( array_keys( array_diff_key( (array) $map[ $type ]['keys'], $common ) ) );
 			$link( LT_Page_Texts::label( $type ), array( 'page_type' => $type ), $n, $todo );
 		}
@@ -553,7 +626,7 @@ class LT_String_Translation {
 		if ( '' !== $args['key'] ) $args['keys'] = array( $args['key'] );
 		if ( '' !== $args['page_type'] ) {
 			$page = LT_Page_Texts::type_data( $args['page_type'] );
-			if ( ! $page ) { echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'This page has not been read yet: open it on the site while logged in (or use “Read all pages”).', 'lightweight-translation' ) . '</p></div>'; $args['page_type'] = ''; }
+			if ( ! $page ) { echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'This page has not been read yet: open it from the list on the left, or turn on “Record the texts of the pages I visit” in the 🌐 Translate menu of the site.', 'lightweight-translation' ) . '</p></div>'; $args['page_type'] = ''; }
 			else {
 				// Where on the page / which block: counted for the filters, then applied.
 				$args['zone']  = isset( $_GET['zone'] ) ? sanitize_key( $_GET['zone'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
@@ -586,6 +659,37 @@ class LT_String_Translation {
 		$args['per_page'] = $per_page;
 		$args = apply_filters( 'lt_string_view_args', $args, $this->all_texts(), $this->index() );
 		if ( '' === $args['group'] && '' === $args['source'] && '' === $args['search'] && '' === $args['kind'] && ! $args['seen'] && ! $args['ignored'] && null === $args['keys'] ) { $this->overview(); return; }
+		if ( 'lt-woocommerce' === $this->slug ) {
+			$all_args = array_merge( $args, array( 'search' => '', 'todo' => false, 'paged' => 1, 'per_page' => PHP_INT_MAX ) );
+			list( $rows, $translations ) = $this->query( $all_args );
+			$country = 'geography' === $args['area'] ? sanitize_key( $_GET['geo_country'] ?? '' ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+			if ( 'geography' === $args['area'] && ! $country ) {
+				LT_WooCommerce_Text_Groups::render_geography_index( $rows, $translations, $this->languages() );
+				return;
+			}
+			if ( $country && 'other' !== $country ) {
+				$ordered = array_flip( LT_WooCommerce_Text_Groups::geography_keys( 'continents' === $country ? $country : strtoupper( $country ) ) );
+				usort( $rows, function( $a, $b ) use ( $ordered ) { return ( $ordered[ $a->field_key ] ?? PHP_INT_MAX ) <=> ( $ordered[ $b->field_key ] ?? PHP_INT_MAX ); } );
+			}
+			$view = array( 'page' => 'lt-woocommerce', 'sub' => $args['sub'], 'area' => $args['area'] );
+			if ( $country ) {
+				$view['geo_country'] = $country;
+				echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=lt-woocommerce&area=geography' ) ) . '">← ' . esc_html__( 'Back to countries', 'lightweight-translation' ) . '</a></p>';
+			}
+			foreach ( array( 'key', 'kind', 'source', 'seen', 'ignored' ) as $key ) if ( ! empty( $args[ $key ] ) ) $view[ $key ] = $args[ $key ];
+			$label = 'settings' === $args['sub'] ? __( 'Shop settings (payment, shipping…)', 'lightweight-translation' ) : __( 'Buttons & messages', 'lightweight-translation' );
+			if ( $args['area'] && isset( LT_WooCommerce_Text_Groups::areas()[ $args['area'] ] ) ) $label = LT_WooCommerce_Text_Groups::areas()[ $args['area'] ][0];
+			if ( $country ) $label = LT_WooCommerce_Text_Groups::geography_label( $country );
+			$export = array( 'string_group' => 'woocommerce', 'string_part' => $args['sub'], 'string_area' => $args['area'] );
+			if ( $country ) $export['string_country'] = $country;
+			LT_Translation_Status::instance()->render_embedded( 'string', $label, wp_list_pluck( $rows, 'first_id' ), $view, $export );
+			return;
+		}
+		if ( in_array( $this->slug, array( 'lt-theme', 'lt-plugins' ), true ) ) {
+			$area = 'lt-theme' === $this->slug && 'texts' === $args['sub'] ? sanitize_key( $_GET['theme_area'] ?? '' ) : '';
+			$label = 'lt-plugins' === $this->slug ? LT_Sources::label( $args['group'] ) : ( self::theme_areas()[ $area ] ?? ( array( 'texts' => __( 'Theme texts', 'lightweight-translation' ), 'settings' => __( 'Theme options (footer, copyright…)', 'lightweight-translation' ), 'widgets' => __( 'Widgets', 'lightweight-translation' ) )[ $args['sub'] ] ?? __( 'Theme texts', 'lightweight-translation' ) ) );
+			LT_Admin_Navigation::progress_header( $label, $this->source_progress( $args['group'], $args['sub'], $area ), $this->languages() );
+		}
 		$this->texts( $args );
 	}
 
@@ -658,7 +762,7 @@ class LT_String_Translation {
 		$more = '' !== $source || $args['ignored'];
 		echo '<details style="margin-top:6px"' . ( $more ? ' open' : '' ) . '><summary style="cursor:pointer" class="lt-tag">' . esc_html__( 'More filters', 'lightweight-translation' ) . '</summary><p>' . ( '' === ( $args['group'] ?? '' ) ? $this->source_select( $source ) . ' ' : '' ) . '<label><input type="checkbox" name="ignored" value="1" ' . checked( $args['ignored'], true, false ) . '> ' . esc_html__( 'Not translated on purpose', 'lightweight-translation' ) . '</label> · <a href="' . esc_url( $this->export_url( $source, '', $args['group'] ?? '' ) ) . '">' . esc_html__( 'Export the untranslated ones (CSV)', 'lightweight-translation' ) . '</a></p></details></form>'; // phpcs:ignore WordPress.Security.EscapeOutput
 		if ( $this->shared && '' !== ( $args['group'] ?? '' ) && empty( $args['shared'] ) ) echo '<p class="lt-tag" style="font-size:13px;margin:4px 0 8px">' . esc_html( sprintf( _n( '%d more text is the same as a WooCommerce or theme text: it uses that translation, so it is not listed here.', '%d more texts are the same as WooCommerce or theme texts: they use that translation, so they are not listed here.', count( $this->shared ), 'lightweight-translation' ), count( $this->shared ) ) ) . ' <a href="' . esc_url( add_query_arg( 'shared', 1 ) ) . '">' . esc_html__( 'Show them anyway', 'lightweight-translation' ) . '</a></p>';
-		if ( ! $rows ) { echo '<p>' . esc_html( $args['todo'] ? __( 'Everything here is translated. 🎉', 'lightweight-translation' ) : __( 'Nothing here.', 'lightweight-translation' ) ) . '</p>'; if ( '' !== $args['page_type'] ) $this->add_form( $args ); return; }
+		if ( ! $rows ) { echo '<p>' . esc_html( $args['todo'] && ( '' === $args['group'] || $this->source_progress( $args['group'], $args['sub'] )['total'] ) ? __( 'Everything here is translated. 🎉', 'lightweight-translation' ) : __( 'Nothing here.', 'lightweight-translation' ) ) . '</p>'; if ( '' !== $args['page_type'] ) $this->add_form( $args ); return; }
 
 		$this->form_open( 'save', ' id="lt-str-form"' );
 		echo '<input type="hidden" name="redirect" value="' . esc_attr( remove_query_arg( 'lt_notice', wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) ) ) . '">';
@@ -829,7 +933,7 @@ class LT_String_Translation {
 		echo '<h3>' . esc_html__( 'Read the code of a plugin or theme', 'lightweight-translation' ) . '</h3><p class="description">' . esc_html__( 'Lists in advance the texts a plugin can show to visitors (including rare error messages). Admin screens are ignored. Nothing is modified.', 'lightweight-translation' ) . '</p><div style="columns:3 260px;margin:10px 0">';
 		foreach ( LT_Code_Scanner::targets() as $target_key => $target ) if ( $target['active'] ) echo '<label style="display:block;margin:0 0 6px"><input type="checkbox" class="lt-scan-target" value="' . esc_attr( $target_key ) . '"> ' . esc_html( $target['label'] ) . '</label>';
 		echo '</div><p><button type="button" class="button" id="lt-scan-start">' . esc_html__( 'Read selected', 'lightweight-translation' ) . '</button> <span id="lt-scan-status" class="description"></span></p><div style="height:6px;background:#f0f0f1;border-radius:4px;overflow:hidden;max-width:520px"><span id="lt-scan-bar" style="display:block;height:100%;width:0;background:#2271b1;transition:width .2s"></span></div>';
-		echo '<script>window.LTScan=' . wp_json_encode( array( 'ajax' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'lt_scan_code' ), 'done' => __( 'Done: %d new texts found. Reloading…', 'lightweight-translation' ), 'scanning' => __( 'Reading %1$s… %2$d/%3$d files', 'lightweight-translation' ), 'reload' => admin_url( 'admin.php?page=lt-plugins' ) ) ) . ';</script>';
+		echo '<script>window.LTScan=' . wp_json_encode( array( 'ajax' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'lt_scan_code' ), 'done' => __( 'Done: %1$d matching texts found, %2$d new. Reloading…', 'lightweight-translation' ), 'scanning' => __( 'Reading %1$s… %2$d/%3$d files', 'lightweight-translation' ), 'pick' => __( 'Select at least one plugin or theme to read.', 'lightweight-translation' ), 'reload' => admin_url( 'admin.php?page=lt-plugins' ) ) ) . ';</script>';
 		$this->form_open( 'cleanup', ' onsubmit="return confirm(' . esc_attr( wp_json_encode( __( 'Remove every untranslated text that no page of the site shows? Translated texts and texts added by hand are kept.', 'lightweight-translation' ) ) ) . ')"' );
 		echo '<h3>' . esc_html__( 'Clean up', 'lightweight-translation' ) . '</h3><p class="description">' . esc_html__( 'After reading the site pages: remove untranslated texts that are not shown to visitors. They can be collected again later if a page starts using them.', 'lightweight-translation' ) . '</p>';
 		submit_button( __( 'Remove the texts no page shows', 'lightweight-translation' ), 'secondary', 'submit', false );
@@ -845,12 +949,12 @@ class LT_String_Translation {
 	private function script() {
 		echo '<script>(function(){var section=document.getElementById("lt-plugin-scan");if(section&&location.hash==="#lt-plugin-scan")section.open=true;var b=document.getElementById("lt-scan-start");if(!b||!window.LTScan)return;var st=document.getElementById("lt-scan-status"),bar=document.getElementById("lt-scan-bar");
 function fmt(s,a){var i=0;return s.replace(/%(\\d\\$)?[sd]/g,function(){return a[i++];});}
-b.addEventListener("click",function(){var targets=[].slice.call(document.querySelectorAll(".lt-scan-target:checked")).map(function(c){return {key:c.value,label:c.parentNode.textContent.trim()};});if(!targets.length)return;
-var mode="smart",added=0,t=0;b.disabled=true;
+b.addEventListener("click",function(){var targets=[].slice.call(document.querySelectorAll(".lt-scan-target:checked")).map(function(c){return {key:c.value,label:c.parentNode.textContent.trim()};});if(!targets.length){st.textContent=LTScan.pick;return;}
+var mode="strict",added=0,found=0,t=0;b.disabled=true;
 function step(offset){var target=targets[t];var body=new URLSearchParams({action:"lt_scan_code",nonce:LTScan.nonce,target:target.key,offset:offset,mode:mode,reset:"1"});
-fetch(LTScan.ajax,{method:"POST",credentials:"same-origin",body:body}).then(function(r){return r.json();}).then(function(r){if(!r.success)throw new Error((r.data&&r.data.message)||"error");var d=r.data;added+=d.added;
+fetch(LTScan.ajax,{method:"POST",credentials:"same-origin",body:body}).then(function(r){return r.json();}).then(function(r){if(!r.success)throw new Error((r.data&&r.data.message)||"error");var d=r.data;added+=d.added;found+=d.found||0;
 var part=d.total?d.offset/d.total:1;bar.style.width=Math.round(100*(t+part)/targets.length)+"%";st.textContent=fmt(LTScan.scanning,[target.label,d.offset,d.total]);
-if(!d.done)return step(d.offset);t++;if(t<targets.length)return step(0);st.textContent=fmt(LTScan.done,[added]);bar.style.width="100%";setTimeout(function(){location.href=LTScan.reload;},1200);}).catch(function(e){st.textContent="⚠ "+e.message;b.disabled=false;});}
+if(!d.done)return step(d.offset);t++;if(t<targets.length)return step(0);st.textContent=fmt(LTScan.done,[found,added]);bar.style.width="100%";setTimeout(function(){location.href=LTScan.reload;},1200);}).catch(function(e){st.textContent="⚠ "+e.message;b.disabled=false;});}
 step(0);});})();</script>';
 		echo '<script>document.querySelectorAll(".lt-chip").forEach(function(c){c.addEventListener("click",function(){var i=document.getElementById("lt-domains"),l=i.value.split(",").map(function(x){return x.trim();}).filter(Boolean);if(l.indexOf(c.dataset.domain)<0)l.push(c.dataset.domain);i.value=l.join(", ");});});</script>';
 	}
@@ -889,7 +993,7 @@ step(0);});})();</script>';
 		$hit = false;
 		foreach ( $map as $type => $entry ) foreach ( $keys as $key ) if ( isset( $map[ $type ]['keys'][ $key ] ) ) { unset( $map[ $type ]['keys'][ $key ] ); $hit = true; }
 		if ( $hit ) update_option( LT_Page_Texts::MAP, $map, false );
-		foreach ( LT_Language_Router::instance()->languages() as $language ) { delete_transient( 'lt_strings_' . $language ); delete_transient( 'lt_wcjs_' . $language ); }
+		LT_Translation_Store::reset_strings();
 		LT_Content_Catalog::strings_changed();
 		return $count;
 	}
@@ -912,7 +1016,7 @@ step(0);});})();</script>';
 					break;
 				case 'clear':
 					$wpdb->query( $wpdb->prepare( "UPDATE $table SET translated_text='', status='empty' WHERE object_type='string' AND object_id=0 AND field_key=%s", $key ) ); // phpcs:ignore WordPress.DB
-					foreach ( LT_Language_Router::instance()->languages() as $language ) delete_transient( 'lt_strings_' . $language );
+					LT_Translation_Store::reset_strings();
 					LT_Content_Catalog::strings_changed();
 					$notice = __( 'Translation cleared: the original text is shown again.', 'lightweight-translation' );
 					break;
@@ -1022,7 +1126,7 @@ step(0);});})();</script>';
 				} elseif ( $keys && in_array( $bulk, array( 'clear', 'skip' ), true ) ) {
 					// Remove the translations (every language): the original text is shown again.
 					$wpdb->query( $wpdb->prepare( "UPDATE $table SET translated_text='', status='empty' WHERE object_type='string' AND object_id=0 AND field_key IN (" . implode( ',', array_fill( 0, count( $keys ), '%s' ) ) . ')', $keys ) ); // phpcs:ignore WordPress.DB
-					foreach ( LT_Language_Router::instance()->languages() as $language ) { delete_transient( 'lt_strings_' . $language ); delete_transient( 'lt_wcjs_' . $language ); }
+					LT_Translation_Store::reset_strings();
 					if ( 'skip' === $bulk ) { $index = $this->index(); foreach ( $keys as $field ) { $index[ $field ] = $index[ $field ] ?? array( 'd' => '' ); $index[ $field ]['x'] = 1; } update_option( LT_Code_Scanner::INDEX, $index, false ); }
 					$done = count( $keys );
 				} elseif ( $keys && in_array( $bulk, array( 'ignore', 'unignore' ), true ) ) {

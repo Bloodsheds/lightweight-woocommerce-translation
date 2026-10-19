@@ -7,6 +7,15 @@ defined( 'ABSPATH' ) || exit;
  * version (/fr/…, /en/…) is purged, not only the original address.
  */
 class LT_Translation_Reset {
+	/**
+	 * Interface texts, terms, slugs and theme blocks appear on every page, so saving them clears the whole page
+	 * cache. A translation session saves many of them: one complete purge is done 5 minutes after the last save
+	 * (15 minutes at most after the first one) instead of one per save. Logged-in editors see changes at once.
+	 */
+	const PURGE_HOOK  = 'lt_delayed_cache_purge';
+	const PURGE_STATE = 'lt_cache_purge_due'; // [ first => time of the first waiting save, due => time of the purge ]
+	const PURGE_DELAY = 300;
+	const PURGE_MAX   = 900;
 	private static $instance;
 	private $global = false;
 	private $queue = array(); // post IDs whose language URLs must be purged at the end of the request
@@ -18,8 +27,9 @@ class LT_Translation_Reset {
 		add_action( 'save_post', array( $this, 'queue_post' ), 99 );
 		add_action( 'lt_translation_saved', array( $this, 'translation_saved' ) );
 		add_action( 'shutdown', array( $this, 'purge_queue' ) );
-		LT_Content_Catalog::watch(); // keeps the translation progress up to date, item by item
 		add_action( 'admin_notices', array( $this, 'notice' ) );
+		add_action( self::PURGE_HOOK, array( __CLASS__, 'purge_all' ) );
+		add_action( 'admin_init', array( __CLASS__, 'purge_if_overdue' ) ); // WP-Cron may not run on a quiet site
 	}
 
 	public function notice() {
@@ -37,6 +47,7 @@ class LT_Translation_Reset {
 			? $wpdb->query( $wpdb->prepare( "DELETE FROM $table WHERE object_type=%s AND object_id=%d AND language_code=%s", $type, $id, $language ) ) // phpcs:ignore WordPress.DB
 			: $wpdb->query( $wpdb->prepare( "DELETE FROM $table WHERE object_type=%s AND object_id=%d", $type, $id ) ); // phpcs:ignore WordPress.DB
 		LT_Content_Catalog::changed_object( $type, $id );
+		LT_Multilingual_Search::invalidate();
 		if ( 'term' !== $type && 'attribute' !== $type ) self::instance()->queue_post( $id );
 		return (int) $count;
 	}
@@ -117,6 +128,9 @@ class LT_Translation_Reset {
 	}
 
 	public static function purge_all() {
+		// A complete purge also serves any purge still waiting.
+		if ( false !== get_option( self::PURGE_STATE, false ) ) delete_option( self::PURGE_STATE );
+		wp_clear_scheduled_hook( self::PURGE_HOOK );
 		do_action( 'litespeed_purge_all' );
 		if ( function_exists( 'rocket_clean_domain' ) ) rocket_clean_domain();
 		if ( function_exists( 'w3tc_flush_all' ) ) w3tc_flush_all();
@@ -124,8 +138,25 @@ class LT_Translation_Reset {
 		do_action( 'lt_purge_all' );
 	}
 
+	/** Delays the complete purge after a save: each new save moves it back, within PURGE_MAX of the first one. */
+	public static function schedule_purge_all() {
+		$now   = time();
+		$state = (array) get_option( self::PURGE_STATE, array() );
+		$first = isset( $state['first'] ) ? (int) $state['first'] : $now;
+		$due   = min( $now + self::PURGE_DELAY, $first + self::PURGE_MAX );
+		update_option( self::PURGE_STATE, array( 'first' => $first, 'due' => $due ), true );
+		wp_clear_scheduled_hook( self::PURGE_HOOK );
+		wp_schedule_single_event( $due, self::PURGE_HOOK );
+	}
+
+	public static function purge_if_overdue() {
+		$state = get_option( self::PURGE_STATE, false );
+		if ( is_array( $state ) && time() >= (int) ( $state['due'] ?? 0 ) ) self::purge_all();
+	}
+
 	public function purge_queue() {
-		if ( $this->global ) { $this->global = false; $this->queue = array(); self::purge_all(); return; }
+		// The saved page itself is purged at once, even when a complete purge is also waiting.
+		if ( $this->global ) { $this->global = false; self::schedule_purge_all(); }
 		if ( ! $this->queue ) return;
 		$urls = array();
 		foreach ( array_keys( $this->queue ) as $post_id ) $urls = array_merge( $urls, self::post_urls( $post_id ) );

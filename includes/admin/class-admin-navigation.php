@@ -12,6 +12,7 @@ class LT_Admin_Navigation {
 		add_filter( 'parent_file', function( $file ) { return self::owns_page() ? 'lt-settings' : $file; } );
 		add_filter( 'admin_body_class', function( $classes ) { return self::owns_page() ? $classes . ' lt-app' : $classes; } );
 		add_action( 'admin_enqueue_scripts', array( $this, 'assets' ) );
+		add_action( 'wp_ajax_lt_source_progress', array( $this, 'source_progress_ajax' ) );
 		add_action( 'wp_ajax_lt_overview_progress', array( $this, 'overview_progress_ajax' ) );
 		add_filter( 'admin_title', function( $title ) { return self::owns_page() && 'lt-settings' !== self::page() ? __( 'Translations', 'lightweight-translation' ) . ' ‹ ' . get_bloginfo( 'name' ) . ' — WordPress' : $title; } );
 		add_action( 'in_admin_header', array( $this, 'header' ) );
@@ -95,6 +96,34 @@ class LT_Admin_Navigation {
 		$languages = array_values( array_diff( $router->languages(), array( $router->default_language() ) ) );
 		wp_send_json_success( LT_Content_Catalog::overview_progress( $languages ) );
 	}
+	/** Refresh existing progress after an in-place save. Nothing runs on public requests. */
+	public function source_progress_ajax() {
+		check_ajax_referer( 'lt_panel', 'nonce' );
+		if ( ! current_user_can( lt_capability() ) ) wp_send_json_error( null, 403 );
+		$view = array();
+		foreach ( array( 'page', 'group', 'source', 'sub', 'area', 'theme_area' ) as $key ) if ( isset( $_POST[ $key ] ) && is_string( $_POST[ $key ] ) ) $view[ $key ] = sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
+		if ( ! in_array( $view['page'] ?? '', array( 'lt-status', 'lt-woocommerce', 'lt-theme' ), true ) ) wp_send_json_error( null, 400 );
+		$previous = $_GET;
+		$_GET = $view; // phpcs:ignore WordPress.Security.NonceVerification -- sanitized view only, restored below
+		$source = self::translation_source();
+		$sidebar = null;
+		if ( in_array( $source, array( 'woocommerce', 'theme' ), true ) ) {
+			ob_start(); self::source_sidebar( $source ); $sidebar = ob_get_clean();
+		}
+		$router = LT_Language_Router::instance();
+		$languages = array_values( array_diff( $router->languages(), array( $router->default_language() ) ) );
+		if ( 'lt-status' === $view['page'] ) $progress = LT_Translation_Status::instance()->group_progress( $view['group'] ?? '', $languages );
+		elseif ( 'emails' === ( $view['sub'] ?? '' ) ) {
+			$data = LT_Content_Catalog::summary( $languages, false, array( 'email' ) )['email'] ?? array();
+			$progress = array( 'total' => $data['items'] ?? 0, 'translated' => array() );
+			foreach ( $languages as $language ) $progress['translated'][ $language ] = $data['languages'][ $language ]['complete_items'] ?? 0;
+		} else $progress = LT_String_Translation::instance()->source_progress( $source, $view['sub'] ?? 'texts', $view['area'] ?? $view['theme_area'] ?? '' );
+		$_GET = $previous; // phpcs:ignore WordPress.Security.NonceVerification
+		$progress['labels'] = array();
+		foreach ( $languages as $language ) $progress['labels'][ $language ] = $progress['total'] ? sprintf( __( '%1$d / %2$d translated', 'lightweight-translation' ), $progress['translated'][ $language ] ?? 0, $progress['total'] ) : __( 'No texts collected yet', 'lightweight-translation' );
+		wp_send_json_success( array( 'sidebar' => $sidebar, 'progress' => $progress ) );
+	}
+
 	/** The five sections, in the order of the work: see where you are, translate, check, exchange files, set up. */
 	public static function main() {
 		return array(
@@ -229,10 +258,32 @@ class LT_Admin_Navigation {
 		return $crumbs;
 	}
 
+	/** The same neutral/pending/complete badge on content, text areas and plugins. */
+	public static function progress_badge( $data ) {
+		$total = (int) ( $data['total'] ?? $data['items'] ?? 0 );
+		$todo = min( $total, (int) ( $data['todo'] ?? 0 ) );
+		$title = $total ? sprintf( __( '%1$d / %2$d translated in every language', 'lightweight-translation' ), $total - $todo, $total ) : __( 'No texts collected yet', 'lightweight-translation' );
+		$class = ! $total ? '' : ( $todo ? ' todo' : ' done' );
+		$label = ! $total ? '0' : ( $todo ? sprintf( __( '%d to do', 'lightweight-translation' ), $todo ) : '✓ ' . number_format_i18n( $total ) );
+		return '<span class="lt-count' . $class . '" title="' . esc_attr( $title ) . '">' . esc_html( $label ) . '</span>';
+	}
+
+	/** A shared progress card; empty sections have a neutral, empty bar. */
+	public static function progress_header( $label, $data, $languages ) {
+		$total = (int) ( $data['total'] ?? 0 );
+		echo '<div class="lt-source-progress"><h2>' . esc_html( $label ) . '</h2><div class="lt-source-languages">';
+		foreach ( $languages as $language ) {
+			$done = min( $total, (int) ( $data['translated'][ $language ] ?? 0 ) );
+			$pct = $total ? (int) floor( 100 * $done / $total ) : 0;
+			echo '<div><strong>' . esc_html( LT_Language_Router::flag( $language ) . ' ' . LT_Language_Router::language_label( $language ) ) . '</strong><span class="lt-source-bar"><i style="width:' . $pct . '%"></i></span><span>' . esc_html( $total ? sprintf( __( '%1$d / %2$d translated', 'lightweight-translation' ), $done, $total ) : __( 'No texts collected yet', 'lightweight-translation' ) ) . '</span></div>';
+		}
+		echo '</div></div>';
+	}
+
 	/**
 	 * Left column of WooCommerce and of the theme: their content (products, categories, layouts…) AND their
 	 * texts (buttons, options, e-mails…) in one list, the same on every screen of the source.
-	 * @param array|null $todo group => [items, todo] to show what is left (Translate screen only).
+	 * @param array|null $todo Cached content counts, reused when the catalogue already loaded them.
 	 */
 	public static function source_sidebar( $source, $todo = null ) {
 		$page  = self::page();
@@ -244,17 +295,21 @@ class LT_Admin_Navigation {
 		};
 		// Content types of this source, in the order a shop owner works.
 		$content = array();
-		foreach ( LT_Content_Catalog::groups() as $key => $label ) if ( 'post:product_variation' !== $key && 'string' !== $key && self::group_source( $key ) === $source ) $content[ $key ] = $label;
+		foreach ( LT_Content_Catalog::groups() as $key => $label ) if ( 'post:product_variation' !== $key && 'string' !== $key && 'email' !== $key && self::group_source( $key ) === $source ) $content[ $key ] = $label;
 		$rank = function( $key ) { $order = array( 'post:product' => 0, 'tax:product_cat' => 1, 'tax:product_tag' => 2, 'attribute' => 3 ); return $order[ $key ] ?? ( 0 === strpos( $key, 'tax:pa_' ) ? 4 : 5 ); };
 		uksort( $content, function( $a, $b ) use ( $rank ) { return ( $rank( $a ) - $rank( $b ) ) ?: strcmp( $a, $b ); } );
-		if ( null !== $todo ) $content = array_intersect_key( $content, array_filter( $todo, function( $t ) { return ! empty( $t['items'] ); } ) );
+		if ( null === $todo ) {
+			$router = LT_Language_Router::instance();
+			$languages = array_values( array_diff( $router->languages(), array( $router->default_language() ) ) );
+			$todo = LT_Translation_Status::instance()->todo_by_group( $languages, array_keys( $content ) );
+		}
+		$content = array_intersect_key( $content, array_filter( $todo, function( $t ) { return ! empty( $t['items'] ); } ) );
 		$current_content = 'lt-status' === $page ? $group : '';
 		$content_list = function( $title ) use ( $content, $todo, $current_content, $link ) {
 			if ( ! $content ) return;
 			echo '<h4>' . esc_html( $title ) . '</h4>';
 			foreach ( $content as $key => $label ) {
-				$badge = '';
-				if ( isset( $todo[ $key ] ) ) $badge = $todo[ $key ]['todo'] ? '<span class="lt-count todo">' . esc_html( sprintf( __( '%d to do', 'lightweight-translation' ), $todo[ $key ]['todo'] ) ) . '</span>' : '<span class="lt-count done">✓ ' . esc_html( number_format_i18n( $todo[ $key ]['items'] ) ) . '</span>';
+				$badge = self::progress_badge( $todo[ $key ] );
 				$link( $label, self::url( 'lt-status', array( 'group' => $key ) ), $key === $current_content, $badge );
 			}
 		};
@@ -263,13 +318,33 @@ class LT_Admin_Navigation {
 		if ( 'lt-emails' === $page ) $sub = 'emails';
 		$sections = self::text_sections( $source );
 		$areas    = self::areas( $source );
-		$texts_list = function( $title ) use ( $sections, $areas, $texts_page, $on_texts, $sub, $area, $source, $link ) {
+		$strings = LT_String_Translation::instance();
+		$texts_list = function( $title ) use ( $sections, $areas, $texts_page, $on_texts, $sub, $area, $source, $link, $strings ) {
 			echo '<h4>' . esc_html( $title ) . '</h4>';
 			foreach ( $sections as $key => $label ) {
 				$active = $on_texts && $key === $sub;
-				$link( $label, self::url( $texts_page, 'texts' === $key ? array() : array( 'sub' => $key ) ), $active && '' === $area );
-				if ( ! $active || 'texts' !== $key ) continue;
-				foreach ( $areas as $area_key => $area_label ) $link( $area_label, self::url( $texts_page, array( 'woocommerce' === $source ? 'area' : 'theme_area' => $area_key ) ), $area === $area_key, '', true );
+				if ( 'emails' === $key ) {
+					$router = LT_Language_Router::instance();
+					$languages = array_values( array_diff( $router->languages(), array( $router->default_language() ) ) );
+					$data = LT_Translation_Status::instance()->todo_by_group( $languages, array( 'email' ) )['email'] ?? array();
+				} else $data = $strings->source_progress( $source, $key );
+				if ( 'woocommerce' === $source && 'texts' === $key ) {
+					$geo = $strings->source_progress( $source, 'texts', 'geography' );
+					$data['total'] = max( 0, ( $data['total'] ?? 0 ) - ( $geo['total'] ?? 0 ) );
+					$data['todo'] = max( 0, ( $data['todo'] ?? 0 ) - ( $geo['todo'] ?? 0 ) );
+				}
+				$link( $label, self::url( $texts_page, 'texts' === $key ? array() : array( 'sub' => $key ) ), $active && ( 'texts' !== $key || '' === $area ), self::progress_badge( $data ) );
+				// Always keep the same children, even from a catalogue/settings/e-mail screen.
+				if ( 'texts' !== $key ) continue;
+				foreach ( $areas as $area_key => $area_label ) {
+					// Theme layouts already have their own content links below (HTML Blocks and Layouts).
+					if ( 'theme' === $source && 'layout' === $area_key ) continue;
+					$progress = 'woocommerce' === $source && 'geography' === $area_key ? array() : $strings->source_progress( $source, 'texts', $area_key );
+					// Unknown themes expose only sections actually found in their code; a selected deep link stays visible.
+					if ( 'theme' === $source && empty( $progress['total'] ) && ! ( $active && $area === $area_key ) ) continue;
+					$badge = 'woocommerce' === $source && 'geography' === $area_key ? '<span class="lt-count">' . esc_html( sprintf( _n( '%s country', '%s countries', LT_WooCommerce_Text_Groups::country_count(), 'lightweight-translation' ), number_format_i18n( LT_WooCommerce_Text_Groups::country_count() ) ) ) . '</span>' : self::progress_badge( $progress );
+					$link( $area_label, self::url( $texts_page, array( 'woocommerce' === $source ? 'area' : 'theme_area' => $area_key ) ), $active && $area === $area_key, $badge, true );
+				}
 			}
 		};
 		if ( 'woocommerce' === $source ) { $content_list( __( 'Catalog', 'lightweight-translation' ) ); $texts_list( __( 'Shop texts', 'lightweight-translation' ) ); }

@@ -59,7 +59,7 @@ class LT_Settings_Page {
 		$hidden    = (array) get_option( 'lt_hidden_languages', array() );
 
 		$this->styles();
-		echo '<div class="wrap lt-settings-page"><h1>' . esc_html__( 'Settings', 'lightweight-translation' ) . ' <span class="lt-version">v' . esc_html( LT_VERSION ) . '</span> <a class="page-title-action" href="' . esc_url( admin_url( 'admin.php?page=lt-help' ) ) . '">' . esc_html__( 'What is translated?', 'lightweight-translation' ) . '</a></h1>';
+		echo '<div class="wrap lt-settings-page"><h1>' . esc_html__( 'Settings', 'lightweight-translation' ) . ' <span class="lt-version">V' . esc_html( LT_VERSION ) . '</span> <a class="page-title-action" href="' . esc_url( admin_url( 'admin.php?page=lt-help' ) ) . '">' . esc_html__( 'What is translated?', 'lightweight-translation' ) . '</a></h1>';
 		if ( isset( $_GET['lt_notice'] ) ) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( wp_unslash( $_GET['lt_notice'] ) ) . '</p></div>'; // phpcs:ignore WordPress.Security.NonceVerification
 
 		$tabs = array( 'languages' => __( 'Languages', 'lightweight-translation' ), 'switcher' => __( 'Language switcher', 'lightweight-translation' ), 'urls' => __( 'Visitors & SEO', 'lightweight-translation' ), 'tools' => __( 'Maintenance', 'lightweight-translation' ) );
@@ -196,7 +196,7 @@ class LT_Settings_Page {
 		if ( ! function_exists( 'get_plugins' ) ) require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		foreach ( (array) get_option( 'active_plugins', array() ) as $file ) { $data = get_plugins()[ $file ] ?? null; $plugins[] = $data ? $data['Name'] . ' ' . $data['Version'] : $file; }
 		$lines = array(
-			'Light translations ' . LT_VERSION . ' · WordPress ' . $wp_version . ' · WooCommerce ' . ( defined( 'WC_VERSION' ) ? WC_VERSION : '-' ) . ' · PHP ' . PHP_VERSION,
+			'Light translations V' . LT_VERSION . ' · WordPress ' . $wp_version . ' · WooCommerce ' . ( defined( 'WC_VERSION' ) ? WC_VERSION : '-' ) . ' · PHP ' . PHP_VERSION,
 			'Theme: ' . $theme->get( 'Name' ) . ' ' . $theme->get( 'Version' ) . ( $theme->parent() ? ' (child of ' . $theme->parent()->get( 'Name' ) . ' ' . $theme->parent()->get( 'Version' ) . ')' : '' ),
 			'Home: ' . home_url( '/' ) . ' · permalinks: ' . ( get_option( 'permalink_structure' ) ?: 'plain (language URLs need pretty permalinks!)' ),
 			'Languages: original=' . $router->default_language() . ' · translations=' . implode( ',', $this->secondary() ) . ' · hidden=' . implode( ',', (array) get_option( 'lt_hidden_languages', array() ) ),

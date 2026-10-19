@@ -2,8 +2,16 @@
 defined( 'ABSPATH' ) || exit;
 class LT_Language_Router {
 	private static $instance; private $lang = ''; private $path = ''; private $forced = false;
+	/**
+	 * current_language() runs for every interface text and many meta reads (thousands of times per page):
+	 * the language settings, the async-request check, the language of the calling page and the URL prefix
+	 * are worked out once per request. A change of the language settings clears them.
+	 */
+	private $settings = array(); private $async = null; private $async_lang = null; private $url_lang = null;
 	public static function instance() { return self::$instance ?: ( self::$instance = new self() ); }
+	public function forget_settings() { $this->settings = array(); $this->async_lang = null; $this->url_lang = null; }
 	private function __construct() {
+		foreach ( array( 'lt_default_language', 'lt_secondary_languages' ) as $option ) foreach ( array( 'add_option_', 'update_option_', 'delete_option_' ) as $hook ) add_action( $hook . $option, array( $this, 'forget_settings' ) );
 		add_action( 'init', array( $this, 'rewrite' ) );
 		add_action( 'init', array( $this, 'maybe_flush_rewrite_rules' ), 99 );
 		add_filter( 'query_vars', function( $vars ) { $vars[] = 'lt_lang'; $vars[] = 'lt_path'; return $vars; } );
@@ -42,14 +50,30 @@ class LT_Language_Router {
 		return strlen( $code ) === 2 ? $code : 'en';
 	}
 	public function languages() {
-		$default = get_option( 'lt_default_language', self::site_language() );
+		if ( isset( $this->settings['languages'] ) ) return $this->settings['languages'];
+		$saved = get_option( 'lt_default_language', false );
+		$default = false !== $saved ? $saved : self::site_language();
 		$secondary = get_option( 'lt_secondary_languages', '' );
-		$list = array_filter( array_map( 'sanitize_key', array_merge( array( $default ), explode( ',', $secondary ) ) ) );
-		return array_values( array_unique( $list ) );
+		$list = array_values( array_unique( array_filter( array_map( 'sanitize_key', array_merge( array( $default ), explode( ',', $secondary ) ) ) ) ) );
+		// Without a saved original language, the site language can change during the request (switch_to_locale): not kept.
+		if ( false !== $saved ) $this->settings['languages'] = $list;
+		return $list;
 	}
-	public function default_language() { return sanitize_key( get_option( 'lt_default_language', self::site_language() ) ); }
+	public function default_language() {
+		if ( isset( $this->settings['default'] ) ) return $this->settings['default'];
+		$saved = get_option( 'lt_default_language', false );
+		$default = sanitize_key( false !== $saved ? $saved : self::site_language() );
+		if ( false !== $saved ) $this->settings['default'] = $default;
+		return $default;
+	}
 	public function selector_languages() { $languages = array_values( array_filter( $this->languages(), function( $l ) { return ! $this->is_hidden( $l ); } ) ); /* hidden languages: never in the switcher (editors preview them via /xx/) */ if ( ! get_option( 'lt_selector_include_default', 1 ) ) $languages = array_values( array_diff( $languages, array( $this->default_language() ) ) ); return $languages; }
-	private function is_async_request() { return wp_doing_ajax() || ( defined( 'WC_DOING_AJAX' ) && WC_DOING_AJAX ) || defined( 'REST_REQUEST' ) || isset( $_REQUEST['wc-ajax'] ) || isset( $_GET['rest_route'] ); }
+	private function is_async_request() {
+		if ( null !== $this->async ) return $this->async;
+		$async = wp_doing_ajax() || ( defined( 'WC_DOING_AJAX' ) && WC_DOING_AJAX ) || defined( 'REST_REQUEST' ) || isset( $_REQUEST['wc-ajax'] ) || isset( $_GET['rest_route'] );
+		// REST_REQUEST is only defined while WordPress parses the request: a "no" is final once the page is being built.
+		if ( $async || did_action( 'wp' ) ) $this->async = $async;
+		return $async;
+	}
 	/** Language of the page of this site that sent the request ('' when unknown). */
 	private function referer_language() {
 		$referer = (string) wp_get_raw_referer();
@@ -60,20 +84,29 @@ class LT_Language_Router {
 	/** AJAX/REST calls made from wp-admin (block editor, quick edit…) must never be translated. */
 	private function is_admin_referer() { $referer = wp_get_raw_referer(); return $referer && 0 === strpos( $referer, admin_url() ); }
 	public function current_language() {
-		if ( ! $this->lang && $this->is_async_request() && ( isset( $_REQUEST['lt_lang'] ) || isset( $_SERVER['HTTP_X_LT_LANG'] ) || ! $this->is_admin_referer() ) ) {
-			// Language of the page that made the call (side cart, theme AJAX…), read from its address; the cookie is
-			// only a fallback (another tab may have changed it).
-			$candidate = isset( $_REQUEST['lt_lang'] ) ? sanitize_key( wp_unslash( $_REQUEST['lt_lang'] ) ) : ( isset( $_SERVER['HTTP_X_LT_LANG'] ) ? sanitize_key( wp_unslash( $_SERVER['HTTP_X_LT_LANG'] ) ) : $this->referer_language() );
-			if ( '' === $candidate ) $candidate = isset( $_COOKIE['lt_lang'] ) ? sanitize_key( wp_unslash( $_COOKIE['lt_lang'] ) ) : '';
-			if ( in_array( $candidate, $this->languages(), true ) ) $this->lang = $candidate;
+		if ( ! $this->lang && $this->is_async_request() ) {
+			if ( null === $this->async_lang ) $this->async_lang = $this->async_language();
+			if ( '' !== $this->async_lang ) $this->lang = $this->async_lang;
 		}
 		// Before WordPress parses the URL (themes like WoodMart read their options very early), read the
 		// language prefix directly from the address so early texts are translated too.
 		if ( ! $this->lang && ! $this->forced && ! did_action( 'parse_request' ) && ! is_admin() && ! $this->is_async_request() ) {
-			$first = explode( '/', self::relative_path( wp_unslash( $_SERVER['REQUEST_URI'] ?? '/' ) ) )[0];
-			if ( $first && $first !== $this->default_language() && in_array( $first, $this->languages(), true ) ) return $first;
+			if ( null === $this->url_lang ) {
+				$first = explode( '/', self::relative_path( wp_unslash( $_SERVER['REQUEST_URI'] ?? '/' ) ) )[0];
+				$this->url_lang = $first && $first !== $this->default_language() && in_array( $first, $this->languages(), true ) ? $first : '';
+			}
+			if ( '' !== $this->url_lang ) return $this->url_lang;
 		}
 		return $this->lang ?: $this->default_language();
+	}
+	/** Language of the page that made an AJAX / REST call ('' when unknown or when the call comes from wp-admin). */
+	private function async_language() {
+		if ( ! isset( $_REQUEST['lt_lang'] ) && ! isset( $_SERVER['HTTP_X_LT_LANG'] ) && $this->is_admin_referer() ) return '';
+		// Language of the page that made the call (side cart, theme AJAX…), read from its address; the cookie is
+		// only a fallback (another tab may have changed it).
+		$candidate = isset( $_REQUEST['lt_lang'] ) ? sanitize_key( wp_unslash( $_REQUEST['lt_lang'] ) ) : ( isset( $_SERVER['HTTP_X_LT_LANG'] ) ? sanitize_key( wp_unslash( $_SERVER['HTTP_X_LT_LANG'] ) ) : $this->referer_language() );
+		if ( '' === $candidate ) $candidate = isset( $_COOKIE['lt_lang'] ) ? sanitize_key( wp_unslash( $_COOKIE['lt_lang'] ) ) : '';
+		return in_array( $candidate, $this->languages(), true ) ? $candidate : '';
 	}
 	public function is_secondary() { return $this->current_language() !== $this->default_language(); }
 	public function rewrite() {
@@ -95,9 +128,9 @@ class LT_Language_Router {
 		if ( $paged > 1 ) $wp->query_vars['paged'] = $paged;
 		$path = $this->translate_path_bases( $raw, $this->lang, true );
 		if ( $path ) {
-			$types = get_post_types( array( 'public' => true ), 'names' );
-			$types = array_merge( $types, array( 'portfolio', 'cms_block', 'woodmart_slide', 'woodmart_layout', 'woodmart_size_guide', 'woodmart_sidebar', 'woodmart_woo_lv', 'woodmart_woo_fbt', 'wd_woo_discounts', 'wd_woo_free_gifts', 'wd_woo_est_del', 'wd_abandoned_cart', 'wd_popup', 'wd_floating_block', 'wd_product_tabs' ) );
-			$post_types = array_unique( array_filter( $types, 'post_type_exists' ) );
+			// Only routable public content belongs in visitor URLs. WoodMart's internal blocks,
+			// sidebars and abandoned carts are rendered inside pages, never resolved as pages.
+			$post_types = get_post_types( array( 'public' => true ), 'names' );
 			$post = $this->resolve_post_request( $path, $post_types );
 			if ( $post ) {
 				if ( 'page' === $post->post_type ) {
@@ -113,7 +146,7 @@ class LT_Language_Router {
 				// Not a page / post / category by itself: an endpoint or extra part after it (/fr/mon-compte/orders/,
 				// /fr/commande/order-received/123/, /fr/blog/feed/…). Rebuild the original-language URL and let
 				// WordPress's own rewrite rules read it, so every plugin endpoint keeps working in every language.
-				$vars = $this->match_original_path( $path, $post_types );
+				$vars = $this->match_original_path( $raw, $post_types ); // endpoint names and values are not URL bases
 				if ( null !== $vars ) {
 					unset( $wp->query_vars['page_id'], $wp->query_vars['p'], $wp->query_vars['pagename'], $wp->query_vars['name'] );
 					$wp->query_vars = array_merge( $wp->query_vars, $vars );
@@ -127,6 +160,7 @@ class LT_Language_Router {
 			unset( $wp->query_vars['p'], $wp->query_vars['pagename'], $wp->query_vars['name'] );
 		}
 		// Empty path with "latest posts" on the front: nothing to add, WordPress handles it like the default home.
+		do_action( 'lt_language_request_parsed', $wp );
 	}
 	/**
 	 * Translated path with an extra part: finds the longest beginning that is a known page / post / term,
@@ -138,7 +172,7 @@ class LT_Language_Router {
 		for ( $k = count( $segments ) - 1; $k >= 0; $k-- ) {
 			$prefix = implode( '/', array_slice( $segments, 0, $k ) );
 			$rest   = implode( '/', array_slice( $segments, $k ) );
-			$base   = $prefix;
+			$base   = $this->translate_path_bases( $prefix, $this->lang, true );
 			if ( '' !== $prefix ) {
 				$post = $this->resolve_post_request( $prefix, $post_types );
 				$link = '';
@@ -185,11 +219,19 @@ class LT_Language_Router {
 			$valid_slug = LT_Translation_Store::translate( $this->lang, $candidate->post_type, $candidate->ID, 'slug', $candidate->post_name );
 			if ( sanitize_title( $valid_slug ) === sanitize_title( basename( $path ) ) && $this->path_matches_url( $path, get_permalink( $candidate ) ) ) return $candidate;
 		}
-		foreach ( $post_types as $post_type ) {
-			foreach ( array_unique( array( $path, basename( $path ) ) ) as $candidate_path ) {
-				$candidate = get_page_by_path( $candidate_path, OBJECT, $post_type );
-				if ( $candidate instanceof WP_Post && $this->path_matches_url( $path, get_permalink( $candidate ) ) ) return $candidate;
-			}
+		// get_page_by_path accepts an array of post types. One indexed lookup per path is
+		// enough; probing every registered type separately grows costly on plugin-heavy sites.
+		$ambiguous = array();
+		foreach ( array_unique( array( $path, basename( $path ) ) ) as $candidate_path ) {
+			$candidate = get_page_by_path( $candidate_path, OBJECT, $post_types );
+			if ( $candidate instanceof WP_Post && $this->path_matches_url( $path, get_permalink( $candidate ) ) ) return $candidate;
+			if ( $candidate instanceof WP_Post ) $ambiguous[] = $candidate_path;
+		}
+		// A slug shared by two post types can return the wrong candidate first.
+		// Only that rare case needs the old per-type fallback.
+		foreach ( $ambiguous as $candidate_path ) foreach ( $post_types as $post_type ) {
+			$candidate = get_page_by_path( $candidate_path, OBJECT, $post_type );
+			if ( $candidate instanceof WP_Post && $this->path_matches_url( $path, get_permalink( $candidate ) ) ) return $candidate;
 		}
 
 		return false;
@@ -205,10 +247,11 @@ class LT_Language_Router {
 			if ( sanitize_title( $translated ) === $requested_slug && ! is_wp_error( $link ) && $this->path_matches_url( $path, $link ) ) { $term = $candidate; break; }
 		}
 		if ( ! $term ) {
-			foreach ( get_taxonomies( array( 'public' => true ), 'objects' ) as $taxonomy ) {
-				$candidate = get_term_by( 'slug', $requested_slug, $taxonomy->name );
-				$link = $candidate instanceof WP_Term ? get_term_link( $candidate ) : false;
-				if ( $candidate instanceof WP_Term && ! is_wp_error( $link ) && $this->path_matches_url( $path, $link ) ) { $term = $candidate; break; }
+			$taxonomies = LT_Content_Catalog::public_taxonomies();
+			$candidates = $taxonomies ? get_terms( array( 'taxonomy' => $taxonomies, 'slug' => $requested_slug, 'hide_empty' => false, 'suppress_filter' => true ) ) : array();
+			if ( ! is_wp_error( $candidates ) ) foreach ( $candidates as $candidate ) {
+				$link = get_term_link( $candidate );
+				if ( ! is_wp_error( $link ) && $this->path_matches_url( $path, $link ) ) { $term = $candidate; break; }
 			}
 		}
 		if ( ! $term || is_wp_error( $term ) ) return false;
@@ -252,7 +295,7 @@ class LT_Language_Router {
 	}
 	/** Static home page (Settings > Reading): always served as / or /fr/, never with its slug. */
 	public static function is_front_page_post( $post ) {
-		$post_id = $post instanceof WP_Post ? $post->ID : absint( $post );
+		$post_id = $post instanceof WP_Post ? $post->ID : ( is_scalar( $post ) ? absint( $post ) : 0 );
 		return $post_id && 'page' === get_option( 'show_on_front' ) && (int) get_option( 'page_on_front' ) === $post_id;
 	}
 	/** /fr/accueil/ (or /fr/home-translated/) → 301 to /fr/. */
@@ -268,7 +311,7 @@ class LT_Language_Router {
 		if ( is_admin() || ! current_user_can( 'manage_options' ) || ( empty( $_GET['lt_debug'] ) && ! get_option( 'lt_debug_mode', 0 ) ) ) return; // phpcs:ignore WordPress.Security.NonceVerification
 		global $wp;
 		$language = $this->current_language();
-		$bar->add_node( array( 'id' => 'lt-debug', 'title' => '🐞 LT ' . strtoupper( $language ) . ' · v' . LT_VERSION, 'href' => admin_url( 'admin.php?page=lt-preferences#tools' ) ) );
+		$bar->add_node( array( 'id' => 'lt-debug', 'title' => '🐞 LT ' . strtoupper( $language ) . ' · V' . LT_VERSION, 'href' => admin_url( 'admin.php?page=lt-preferences#tools' ) ) );
 		$lines = array(
 			'language: ' . $language . ' (from URL: ' . ( $this->lang ?: '-' ) . ', path: ' . ( '' === $this->path ? '(empty)' : $this->path ) . ', cookie: ' . sanitize_key( $_COOKIE['lt_lang'] ?? '-' ) . ')' . ( $this->is_hidden( $language ) ? ' · HIDDEN language' : '' ),
 			'rewrite rule: ' . ( $wp->matched_rule ?? '-' ) . ' → ' . ( $wp->matched_query ?? '-' ),
@@ -288,11 +331,11 @@ class LT_Language_Router {
 				$lines[] = 'translation (' . $language . '): ' . ( $states ? implode( ', ', $states ) : 'no translatable field' ) . '  [outdated = original changed since; missing = original shown]';
 			}
 		}
-		if ( is_search() && class_exists( 'LT_Frontend_Filters' ) ) $lines[] = 'search "' . get_search_query() . '": ' . count( LT_Frontend_Filters::search_ids( $language, get_search_query( false ) ) ) . ' item(s) matched in the ' . strtoupper( $language ) . ' translations';
+		if ( is_search() && class_exists( 'LT_Frontend_Filters' ) ) $lines[] = 'search "' . get_search_query() . '": matching languages: ' . implode( ', ', $this->languages() ) . '; display: ' . strtoupper( $language );
 		$caches = array_keys( array_filter( array( 'LiteSpeed' => defined( 'LSCWP_V' ), 'WP Rocket' => defined( 'WP_ROCKET_VERSION' ), 'W3 Total Cache' => defined( 'W3TC' ), 'WP Super Cache' => function_exists( 'wp_cache_clear_cache' ) ) ) );
 		$lines[] = 'page cache: ' . ( $caches ? implode( ', ', $caches ) . ' (logged-in admins usually bypass it: test in a private window)' : 'none detected' );
 		$stats   = LT_Translation_Store::$stats;
-		$lines[] = 'performance (so far on this page): ' . $stats['queries'] . ' translation queries · ' . $stats['primed'] . ' items preloaded in batch · ' . $stats['strings'] . ' translated interface texts in memory (cache ' . ( $stats['strings_cache'] ?: '-' ) . ')';
+		$lines[] = 'performance (so far on this page): ' . $stats['queries'] . ' translation queries · ' . $stats['primed'] . ' items preloaded in batch · ' . $stats['strings'] . ' translated interface texts loaded for this request';
 		$lines[] = 'alternate URLs: ' . implode( ' | ', array_map( function( $l ) { return $l . '=' . self::url( $l ); }, $this->languages() ) );
 		foreach ( $lines as $i => $line ) $bar->add_node( array( 'id' => 'lt-debug-' . $i, 'parent' => 'lt-debug', 'title' => esc_html( $line ) ) );
 	}
@@ -378,7 +421,11 @@ class LT_Language_Router {
 		// (pages restored from the browser's memory run "pageshow", not the server).
 		echo "<script>(function(d){try{function get(){var m=document.cookie.match(/(?:^|; )lt_lang=([^;]*)/);return m?m[1]:'';}"
 			. "function set(l){document.cookie='lt_lang='+l+'; path='+d.path+'; max-age=15552000; SameSite=Lax'+(d.secure?'; Secure':'');}"
+			. "function choose(l){set(l);document.cookie='lt_lang_choice='+l+'; path='+d.path+'; max-age=600; SameSite=Lax'+(d.secure?'; Secure':'');}"
 			. "window.ltSetLang=set;"
+			// Choosing a language in any selector = the visitor's choice, remembered before leaving the page. Kept here
+			// (every page) rather than in the selector script, which a cached menu may not request.
+			. "document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[data-lt-lang]'):null;if(a)choose(a.getAttribute('data-lt-lang'));},true);"
 			. "function go(l){if(d.targets[l]){var t=new URL(d.targets[l],location.href),c=new URL(location.href);c.searchParams.forEach(function(v,k){if(!t.searchParams.has(k))t.searchParams.append(k,v);});t.hash=c.hash;if(t.href!==location.href){location.replace(t.href);return true;}}return false;}"
 			. "function run(){var c=get();"
 			. "if(d.current!==d.def){if(c!==d.current)set(d.current);return;}"
@@ -408,17 +455,43 @@ class LT_Language_Router {
 			if ( $language !== self::instance()->default_language() ) $query['lt_lang'] = $language;
 			return add_query_arg( $query, $url );
 		}
-		$path = self::relative_path( wp_unslash( $_SERVER['REQUEST_URI'] ?? '/' ) );
-		foreach ( self::instance()->languages() as $known ) $path = preg_replace( '#^' . preg_quote( $known, '#' ) . '/?#', '', $path );
-		$path = self::instance()->translate_path_bases( $path, self::instance()->current_language(), true );
+		$path = self::without_language_prefix( self::relative_path( wp_unslash( $_SERVER['REQUEST_URI'] ?? '/' ) ) );
 		$object = get_queried_object();
 		if ( self::is_front_page_post( $object ) || ( is_front_page() && ! is_paged() ) ) return self::with_request_query( trailingslashit( home_url( $language === self::instance()->default_language() ? '' : $language ) ) );
-		if ( $object instanceof WP_Post ) { $slug = LT_Translation_Store::translate( $language, $object->post_type, $object->ID, 'slug', $object->post_name ); $path = self::replace_last_segment( $path, $slug ); }
-		if ( $object instanceof WP_Term ) { $slug = LT_Translation_Store::translate( $language, 'term', $object->term_id, 'slug', $object->slug ); $path = self::replace_last_segment( $path, $slug ); }
+		if ( $object instanceof WP_Post || $object instanceof WP_Term ) {
+			$url = self::object_language_url( $object, $language, $path );
+			if ( $url ) return self::with_request_query( $url );
+		}
+		$path = self::instance()->translate_path_bases( $path, self::instance()->current_language(), true );
 		$path = self::instance()->translate_path_bases( $path, $language );
 		return self::with_request_query( trailingslashit( home_url( $language === self::instance()->default_language() ? $path : $language . '/' . $path ) ) );
 	}
-	private static function with_request_query( $url ) { $uri = wp_unslash( $_SERVER['REQUEST_URI'] ?? '/' ); $query = array(); wp_parse_str( (string) wp_parse_url( $uri, PHP_URL_QUERY ), $query ); unset( $query['lt_lang'], $query['lt_path'] ); return $query ? add_query_arg( $query, $url ) : $url; }
+	/** Remove exactly one complete language segment, never the beginning of a slug such as "fragrance". */
+	private static function without_language_prefix( $path ) {
+		$parts = explode( '/', trim( (string) $path, '/' ) );
+		if ( in_array( $parts[0], self::instance()->languages(), true ) ) array_shift( $parts );
+		return implode( '/', $parts );
+	}
+	/** Translate the resolved page/term permalink, retaining everything after that object (endpoints, IDs, pages). */
+	private static function object_language_url( $object, $language, $path ) {
+		$router = self::instance();
+		$permalink = function() use ( $object ) { return $object instanceof WP_Post ? get_permalink( $object ) : get_term_link( $object ); };
+		$target = $router->with_language( $language, $permalink );
+		if ( ! is_string( $target ) || '' === $target ) return '';
+		$request = array_values( array_filter( explode( '/', trim( $path, '/' ) ), 'strlen' ) );
+		$suffix = array();
+		foreach ( array_unique( array( $router->current_language(), $router->default_language() ) ) as $source_language ) {
+			$source = $router->with_language( $source_language, $permalink );
+			if ( ! is_string( $source ) || '' === $source ) continue;
+			$base = self::without_language_prefix( self::relative_path( $source ) );
+			$segments = '' === $base ? array() : explode( '/', $base );
+			if ( count( $request ) < count( $segments ) || array_map( 'rawurldecode', $segments ) !== array_map( 'rawurldecode', array_slice( $request, 0, count( $segments ) ) ) ) continue;
+			$suffix = array_slice( $request, count( $segments ) );
+			break;
+		}
+		return trailingslashit( $target ) . ( $suffix ? trailingslashit( implode( '/', $suffix ) ) : '' );
+	}
+	private static function with_request_query( $url ) { $uri = wp_unslash( $_SERVER['REQUEST_URI'] ?? '/' ); $query = array(); wp_parse_str( (string) wp_parse_url( $uri, PHP_URL_QUERY ), $query ); unset( $query['lt_lang'], $query['lt_path'], $query['lt_collect'] ); return $query ? add_query_arg( $query, $url ) : $url; }
 	private static function replace_last_segment( $path, $slug ) { $parts = array_values( array_filter( explode( '/', trim( $path, '/' ) ) ) ); if ( $parts ) array_pop( $parts ); $parts[] = sanitize_title( $slug ); return implode( '/', $parts ); }
 	/** Known languages: code => [native name, flag]. */
 	public static function catalog() {
@@ -446,7 +519,7 @@ class LT_Language_Router {
 	public function protect_hidden_language() {
 		if ( $this->lang && $this->is_hidden( $this->lang ) && ! $this->can_see_hidden() ) { wp_safe_redirect( self::url( $this->default_language() ), 302 ); exit; }
 	}
-	public static function switcher( $atts = array() ) { $show_flag = get_option( 'lt_selector_show_flag', 1 ); $show_name = get_option( 'lt_selector_show_name', 1 ); $style = isset( $atts['style'] ) ? sanitize_key( $atts['style'] ) : 'boxed'; if ( ! in_array( $style, array( 'boxed', 'plain', 'list' ), true ) ) $style = 'boxed'; $current = self::instance()->current_language(); if ( 'list' === $style ) return self::language_list_markup( $current ); $current_label = ( $show_flag ? self::flag( $current ) . ' ' : '' ) . ( $show_name ? self::language_label( $current ) : strtoupper( $current ) ); $id = 'lt-language-switcher-' . wp_rand( 1000, 999999 ); $out = '<div id="' . esc_attr( $id ) . '" class="lt-language-switcher-wrap lt-language-switcher-wrap--' . esc_attr( $style ) . ' wd-event-click"><button type="button" class="lt-language-switcher-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="' . esc_attr( $id ) . '-menu"><span class="lt-language-switcher-current">' . esc_html( $current_label ) . '</span><span class="lt-language-switcher-chevron" aria-hidden="true"></span></button><ul id="' . esc_attr( $id ) . '-menu" class="lt-language-switcher-menu wd-dropdown wd-sub-menu" role="listbox" aria-hidden="true">'; foreach ( self::instance()->selector_languages() as $lang ) { if ( $lang === $current ) continue; $label = ( $show_flag ? self::flag( $lang ) . ' ' : '' ) . ( $show_name ? self::language_label( $lang ) : strtoupper( $lang ) ); $out .= '<li role="none"><a class="lt-language-switcher-option" role="option" data-lt-lang="' . esc_attr( $lang ) . '" href="' . esc_url( self::url( $lang ) ) . '">' . esc_html( $label ) . '</a></li>'; } return $out . '</ul></div>'; }
+	public static function switcher( $atts = array() ) { self::selector_script(); $show_flag = get_option( 'lt_selector_show_flag', 1 ); $show_name = get_option( 'lt_selector_show_name', 1 ); $style = isset( $atts['style'] ) ? sanitize_key( $atts['style'] ) : 'boxed'; if ( ! in_array( $style, array( 'boxed', 'plain', 'list' ), true ) ) $style = 'boxed'; $current = self::instance()->current_language(); if ( 'list' === $style ) return self::language_list_markup( $current ); $current_label = ( $show_flag ? self::flag( $current ) . ' ' : '' ) . ( $show_name ? self::language_label( $current ) : strtoupper( $current ) ); $id = 'lt-language-switcher-' . wp_rand( 1000, 999999 ); $out = '<div id="' . esc_attr( $id ) . '" class="lt-language-switcher-wrap lt-language-switcher-wrap--' . esc_attr( $style ) . ' wd-event-click"><button type="button" class="lt-language-switcher-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="' . esc_attr( $id ) . '-menu"><span class="lt-language-switcher-current">' . esc_html( $current_label ) . '</span><span class="lt-language-switcher-chevron" aria-hidden="true"></span></button><ul id="' . esc_attr( $id ) . '-menu" class="lt-language-switcher-menu wd-dropdown wd-sub-menu" role="listbox" aria-hidden="true">'; foreach ( self::instance()->selector_languages() as $lang ) { if ( $lang === $current ) continue; $label = ( $show_flag ? self::flag( $lang ) . ' ' : '' ) . ( $show_name ? self::language_label( $lang ) : strtoupper( $lang ) ); $out .= '<li role="none"><a class="lt-language-switcher-option" role="option" data-lt-lang="' . esc_attr( $lang ) . '" href="' . esc_url( self::url( $lang ) ) . '">' . esc_html( $label ) . '</a></li>'; } return $out . '</ul></div>'; }
 	private static function language_list_markup( $current ) { $show_flag = get_option( 'lt_selector_show_flag', 1 ); $show_name = get_option( 'lt_selector_show_name', 1 ); $out = '<ul class="lt-language-switcher-list" aria-label="' . esc_attr__( 'Available languages', 'lightweight-translation' ) . '">'; foreach ( self::instance()->selector_languages() as $lang ) { $label = ( $show_flag ? self::flag( $lang ) . ' ' : '' ) . ( $show_name ? self::language_label( $lang ) : strtoupper( $lang ) ); $out .= '<li>'; if ( $lang === $current ) $out .= '<span aria-current="page">' . esc_html( $label ) . '</span>'; else $out .= '<a class="lt-language-switcher-option" data-lt-lang="' . esc_attr( $lang ) . '" href="' . esc_url( self::url( $lang ) ) . '">' . esc_html( $label ) . '</a>'; $out .= '</li>'; } return $out . '</ul>'; }
 	public function menu_box() { add_meta_box( 'lt-language-switcher', __( 'Language selector', 'lightweight-translation' ), array( $this, 'menu_box_html' ), 'nav-menus', 'side', 'default' ); }
 	public function menu_box_html() { global $nav_menu_selected_id; $menu_id = isset( $_REQUEST['menu'] ) ? absint( $_REQUEST['menu'] ) : absint( $nav_menu_selected_id ?? 0 ); $url = $menu_id ? wp_nonce_url( add_query_arg( array( 'action' => 'lt_add_menu_switcher', 'menu_id' => $menu_id ), admin_url( 'admin-post.php' ) ), 'lt_add_menu_switcher' ) : '#'; echo '<div class="lt-menu-box"><p>' . esc_html__( 'Add a language selector to this menu.', 'lightweight-translation' ) . '</p><p class="description">' . esc_html__( 'Display options are configured under Light translations.', 'lightweight-translation' ) . '</p><p><a class="button-secondary ' . ( $menu_id ? '' : 'disabled' ) . '" href="' . esc_url( $url ) . '">' . esc_html__( 'Add to menu', 'lightweight-translation' ) . '</a></p>' . ( isset( $_GET['lt_added'] ) ? '<p class="lt-menu-result">' . esc_html__( 'Language selector added.', 'lightweight-translation' ) . '</p>' : '' ) . '</div>'; }
@@ -457,6 +530,7 @@ class LT_Language_Router {
 	public function admin_add_menu_switcher() { check_admin_referer( 'lt_add_menu_switcher' ); if ( ! current_user_can( 'edit_theme_options' ) ) wp_die( esc_html__( 'Unauthorized.', 'lightweight-translation' ) ); $menu_id = absint( $_GET['menu_id'] ?? 0 ); if ( ! $menu_id || ! wp_get_nav_menu_object( $menu_id ) ) wp_die( esc_html__( 'Select and save a menu first.', 'lightweight-translation' ) ); $item_id = $this->create_menu_switcher( $menu_id ); if ( ! $item_id || is_wp_error( $item_id ) ) wp_die( esc_html__( 'Unable to add the selector.', 'lightweight-translation' ) ); wp_safe_redirect( add_query_arg( array( 'action' => 'edit', 'menu' => $menu_id, 'lt_added' => 1 ), admin_url( 'nav-menus.php' ) ) ); exit; }
 	public function render_menu_switcher( $output, $item, $depth, $args ) {
 		if ( ! is_object( $item ) || '1' !== get_post_meta( $item->ID, '_lt_switcher', true ) ) return $output;
+		self::selector_script();
 		$style = $this->menu_switcher_style( $item->ID );
 		if ( 'list' === $style ) return self::language_list_markup( $this->current_language() );
 		if ( 'theme' === $style ) return $this->menu_switcher_theme_markup();
@@ -472,7 +546,7 @@ class LT_Language_Router {
 		$show_name = get_option( 'lt_selector_show_name', 1 );
 		$current   = $this->current_language();
 		$name      = $show_name ? self::language_label( $current ) : strtoupper( $current );
-		return '<a href="' . esc_url( self::url( $current ) ) . '" class="woodmart-nav-link lt-language-switcher-trigger lt-language-switcher-trigger--theme"><span class="nav-link-text">' . ( $show_flag ? '<span class="wpml-ls-flag">' . esc_html( self::flag( $current ) ) . '</span>' : '' ) . '<span class="wpml-ls-native">' . esc_html( $name ) . '</span></span></a>';
+		return '<a href="' . esc_url( self::url( $current ) ) . '" aria-current="true" role="button" aria-haspopup="true" class="woodmart-nav-link lt-language-switcher-trigger lt-language-switcher-trigger--theme"><span class="nav-link-text">' . ( $show_flag ? '<span class="wpml-ls-flag">' . esc_html( self::flag( $current ) ) . '</span>' : '' ) . '<span class="wpml-ls-native">' . esc_html( $name ) . '</span></span></a>';
 	}
 	/** Let the active theme's normal menu walker render the language links as native submenu items. */
 	public function add_menu_switcher_languages( $items, $args ) {
@@ -482,6 +556,7 @@ class LT_Language_Router {
 		$languages = $this->selector_languages();
 		foreach ( $items as $parent ) {
 			if ( ! is_object( $parent ) || '1' !== get_post_meta( $parent->ID, '_lt_switcher', true ) || 'theme' !== $this->menu_switcher_style( $parent->ID ) ) continue;
+			self::selector_script();
 			$parent_id = absint( $parent->ID );
 			foreach ( $languages as $index => $language ) {
 				if ( $language === $this->current_language() ) continue;
@@ -516,8 +591,16 @@ class LT_Language_Router {
 		return $out . '</ul>';
 	}
 	private function menu_switcher_markup( $style = 'boxed' ) { $style = in_array( $style, array( 'boxed', 'plain' ), true ) ? $style : 'boxed'; $show_flag = get_option( 'lt_selector_show_flag', 1 ); $show_name = get_option( 'lt_selector_show_name', 1 ); $current = $this->current_language(); $id = 'lt-language-switcher-' . wp_rand( 1000, 999999 ); $current_name = $show_name ? self::language_label( $current ) : strtoupper( $current ); $out = '<a href="' . esc_url( self::url( $current ) ) . '" class="woodmart-nav-link lt-language-switcher-trigger lt-language-switcher-trigger--' . esc_attr( $style ) . '" aria-expanded="false" aria-controls="' . esc_attr( $id ) . '"><span class="nav-link-text">' . ( $show_flag ? '<span class="wpml-ls-flag">' . esc_html( self::flag( $current ) ) . '</span>' : '' ) . '<span class="wpml-ls-native">' . esc_html( $current_name ) . '</span></span></a><div id="' . esc_attr( $id ) . '" class="color-scheme-dark wd-design-default wd-dropdown-menu wd-dropdown lt-language-switcher-menu lt-language-switcher-menu--' . esc_attr( $style ) . '" aria-hidden="true"><div class="container wd-entry-content"><ul class="wd-sub-menu color-scheme-dark" role="listbox">'; foreach ( $this->selector_languages() as $lang ) { if ( $lang === $current ) continue; $name = $show_name ? self::language_label( $lang ) : strtoupper( $lang ); $out .= '<li class="menu-item item-level-1 wd-event-hover" role="none"><a title="' . esc_attr( sprintf( __( 'Switch to %s', 'lightweight-translation' ), $name ) ) . '" href="' . esc_url( self::url( $lang ) ) . '" data-lt-lang="' . esc_attr( $lang ) . '" aria-label="' . esc_attr( sprintf( __( 'Switch to %s', 'lightweight-translation' ), $name ) ) . '" class="woodmart-nav-link lt-language-switcher-option" role="option">' . ( $show_flag ? '<span class="wpml-ls-flag">' . esc_html( self::flag( $lang ) ) . '</span>' : '' ) . '<span class="wpml-ls-native">' . esc_html( $name ) . '</span></a></li>'; } return $out . '</ul></div></div>'; }
-	public function menu_item_classes( $classes, $item, $args, $depth ) { if ( is_object( $item ) && '1' === get_post_meta( $item->ID, '_lt_switcher', true ) ) { $style = $this->menu_switcher_style( $item->ID ); $classes = array_merge( $classes, array( 'lt-menu-switcher-item', 'lt-menu-switcher--' . $style ) ); if ( 'theme' === $style || 'plain' === $style || 'boxed' === $style ) $classes[] = 'menu-item-has-children'; if ( 'boxed' !== $style && 'plain' !== $style ) $classes = array_values( array_diff( $classes, array( 'wd-event-click' ) ) ); } return array_unique( $classes ); }
-	public function frontend_assets() { wp_enqueue_style( 'lt-frontend', plugins_url( 'assets/css/frontend.css', LT_FILE ), array(), LT_VERSION ); wp_enqueue_script( 'lt-frontend', plugins_url( 'assets/js/frontend.js', LT_FILE ), array(), LT_VERSION, true ); }
+	public function menu_item_classes( $classes, $item, $args, $depth ) { if ( is_object( $item ) && '1' === get_post_meta( $item->ID, '_lt_switcher', true ) ) { if ( ! is_admin() ) self::selector_script(); $style = $this->menu_switcher_style( $item->ID ); $classes = array_merge( $classes, array( 'lt-menu-switcher-item', 'lt-menu-switcher--' . $style ) ); if ( 'theme' === $style || 'plain' === $style || 'boxed' === $style ) $classes[] = 'menu-item-has-children'; if ( 'boxed' !== $style && 'plain' !== $style ) $classes = array_values( array_diff( $classes, array( 'wd-event-click' ) ) ); } return array_unique( $classes ); }
+	/** The style is needed before the selector is displayed (head); its script only on pages that show a selector. */
+	public function frontend_assets() { wp_enqueue_style( 'lt-frontend', plugins_url( 'assets/css/frontend.css', LT_FILE ), array(), LT_VERSION ); wp_register_script( 'lt-frontend', plugins_url( 'assets/js/frontend.js', LT_FILE ), array(), LT_VERSION, true ); }
+	/** Called when a selector is rendered: the script joins the footer, or is printed at once if the footer scripts are already out. */
+	private static function selector_script() {
+		if ( wp_script_is( 'lt-frontend', 'done' ) || wp_script_is( 'lt-frontend', 'enqueued' ) ) return;
+		if ( ! wp_script_is( 'lt-frontend', 'registered' ) ) wp_register_script( 'lt-frontend', plugins_url( 'assets/js/frontend.js', LT_FILE ), array(), LT_VERSION, true );
+		if ( did_action( 'wp_print_footer_scripts' ) ) wp_print_scripts( 'lt-frontend' );
+		else wp_enqueue_script( 'lt-frontend' );
+	}
 	public function post_link( $url, $post ) { if ( ! $this->is_secondary() || ! $post || ! $post->ID || ! get_option( 'permalink_structure' ) ) return $url; if ( self::is_front_page_post( $post ) ) return trailingslashit( home_url( $this->current_language() ) ); $path = self::relative_path( $url ); $slug = LT_Translation_Store::translate( $this->current_language(), $post->post_type, $post->ID, 'slug', $post->post_name ); $path = $this->translate_path_bases( self::replace_last_segment( $path, $slug ), $this->current_language() ); return trailingslashit( home_url( $this->current_language() . '/' . $path ) ); }
 	public function page_link( $url, $post_id ) { $post = get_post( $post_id ); return $post instanceof WP_Post ? $this->post_link( $url, $post ) : $url; }
 	public function term_link( $url, $term, $taxonomy ) { if ( ! $this->is_secondary() || ! $term || ! $term->term_id || ! get_option( 'permalink_structure' ) ) return $url; $path = self::relative_path( $url ); $slug = LT_Translation_Store::translate( $this->current_language(), 'term', $term->term_id, 'slug', $term->slug ); $path = $this->translate_path_bases( self::replace_last_segment( $path, $slug ), $this->current_language() ); return trailingslashit( home_url( $this->current_language() . '/' . $path ) ); }

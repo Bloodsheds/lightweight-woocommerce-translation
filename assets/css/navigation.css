@@ -86,3 +86,17 @@
 .lt-breadcrumb [aria-current] { color:#1d2327; font-weight:600; }
 .lt-side a.lt-back { color:var(--lt-accent); font-size:13px; border-bottom:1px solid #f0f0f1; margin-bottom:4px; }
 .lt-side .lt-side-foot { margin:8px 16px 0; font-size:12px; color:var(--lt-muted); line-height:1.5; }
+
+/* Shared source navigation and progress, including the inline Theme/Plugins editor. */
+.lt-app .lt-layout{grid-template-columns:260px minmax(0,1fr)}
+.lt-app .lt-side a.lt-place-child{padding-left:28px;font-size:13px;color:#50575e}
+.lt-app .lt-side .lt-place>span:first-child{min-width:0;overflow-wrap:anywhere}
+.lt-app .lt-count{flex-shrink:0}
+.lt-app .lt-source-progress{background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:14px 18px;margin-bottom:12px}
+.lt-app .lt-source-progress h2{margin:0 0 8px;font-size:18px}
+.lt-app .lt-source-languages{display:flex;flex-wrap:wrap;gap:6px 22px}
+.lt-app .lt-source-languages>div{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;color:#50575e}
+.lt-app .lt-source-bar{width:110px;height:6px;border-radius:3px;background:#f0f0f1;overflow:hidden}
+.lt-app .lt-source-bar i{display:block;height:100%;background:#00a32a}
+.lt-app .lt-bar.is-empty{background:#f0f0f1}
+@media(max-width:960px){.lt-app .lt-layout{grid-template-columns:1fr}}

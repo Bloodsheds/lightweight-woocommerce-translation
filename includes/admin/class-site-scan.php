@@ -12,7 +12,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class LT_Site_Scan {
 	const RESULTS   = 'lt_site_scan';    // [ time, end, texts => [ id => text ], pages => [ ref => [ l => label, o => url, r => [ lang => [ u => url, t => visible ids, h => hidden ids, e => error ] ] ] ] ]
-	const LOGIC_VERSION = 4; // 4: quick check (base-language page compared with the saved translations) or in-depth check
+	const LOGIC_VERSION = 6; // 6: signed visitor frames and desktop/mobile views
 	const IGNORED   = 'lt_scan_ignored'; // lowercase text => text: same in every language (brand, name…), not reported
 	const BATCH     = 100;               // pages listed per AJAX call
 	const MAX_TEXTS = 80;                // texts kept per page and language
@@ -27,8 +27,23 @@ class LT_Site_Scan {
 		add_action( 'admin_bar_menu', array( $this, 'admin_bar' ), 86 );
 		// Pages opened by the check are read, not looked at: no admin bar to build.
 		if ( ! is_admin() && LT_Page_Texts::scan_frame() ) add_filter( 'show_admin_bar', '__return_false' );
-		add_action( 'lt_translation_saved', function( $row ) { delete_transient( 'lt_scan_known_' . sanitize_key( $row['language_code'] ?? '' ) ); } );
 	}
+
+	/** A temporary signed scan URL strips the administrator session for this public GET only. */
+	private static function signature( $expiry ) { return hash_hmac( 'sha256', (string) $expiry . '|' . home_url( '/' ), wp_salt( 'auth' ) ); }
+	public static function visitor_token() {
+		$expiry = time() + 2 * HOUR_IN_SECONDS;
+		return $expiry . '.' . self::signature( $expiry );
+	}
+	public static function visitor_frame() {
+		$mode = $_GET['lt_scan'] ?? ''; // phpcs:ignore WordPress.Security.NonceVerification
+		$raw_token = $_GET['lt_scan_token'] ?? ''; // phpcs:ignore WordPress.Security.NonceVerification
+		if ( is_admin() || 'GET' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) || ! is_string( $mode ) || ! is_string( $raw_token ) || ! in_array( sanitize_key( $mode ), array( 'o', 't' ), true ) ) return false;
+		$token = sanitize_text_field( wp_unslash( $raw_token ) );
+		if ( ! preg_match( '/^(\d{10})\.([a-f0-9]{64})$/', $token, $matches ) || (int) $matches[1] < time() ) return false;
+		return hash_equals( self::signature( (int) $matches[1] ), $matches[2] );
+	}
+	public static function scan_user( $user_id ) { return self::visitor_frame() ? 0 : $user_id; }
 
 	public function menu() { add_submenu_page( 'lt-settings', __( 'Check the site', 'lightweight-translation' ), '🔴 ' . __( 'Check the site', 'lightweight-translation' ), lt_capability(), 'lt-scan', array( $this, 'page' ) ); }
 
@@ -55,6 +70,7 @@ class LT_Site_Scan {
 				$refs = array_merge( $refs, $posts( 'page' ) );
 				if ( function_exists( 'wc_get_account_menu_items' ) && function_exists( 'wc_get_account_endpoint_url' ) ) {
 					foreach ( array_keys( (array) wc_get_account_menu_items() ) as $endpoint ) if ( ! in_array( $endpoint, array( 'dashboard', 'customer-logout' ), true ) ) $refs[] = 'account:' . $endpoint;
+					if ( function_exists( 'wc_get_endpoint_url' ) ) foreach ( array( 'billing', 'shipping' ) as $address ) $refs[] = 'account:edit-address:' . $address;
 				}
 				return array_values( array_unique( $refs ) );
 			case 'products':
@@ -75,7 +91,7 @@ class LT_Site_Scan {
 
 	private static function count( $kind ) {
 		switch ( $kind ) {
-			case 'pages':      return (int) ( wp_count_posts( 'page' )->publish ?? 0 ) + ( 'page' === get_option( 'show_on_front' ) && get_option( 'page_on_front' ) ? 0 : 1 ) + ( function_exists( 'wc_get_account_menu_items' ) ? max( 0, count( (array) wc_get_account_menu_items() ) - 2 ) : 0 );
+			case 'pages':      return (int) ( wp_count_posts( 'page' )->publish ?? 0 ) + ( 'page' === get_option( 'show_on_front' ) && get_option( 'page_on_front' ) ? 0 : 1 ) + ( function_exists( 'wc_get_account_menu_items' ) ? max( 0, count( (array) wc_get_account_menu_items() ) - 2 ) + 2 : 0 );
 			case 'products':   return (int) ( wp_count_posts( 'product' )->publish ?? 0 );
 			case 'posts':      return (int) ( wp_count_posts( 'post' )->publish ?? 0 );
 			case 'categories':
@@ -105,7 +121,13 @@ class LT_Site_Scan {
 			$link  = function() use ( $router ) { return trailingslashit( home_url( $router->is_secondary() ? $router->current_language() : '' ) ); };
 		} elseif ( 'account' === $type && function_exists( 'wc_get_account_endpoint_url' ) ) {
 			$label = LT_Page_Texts::label( $ref );
-			$link  = function() use ( $id ) { return wc_get_account_endpoint_url( $id ); };
+			$link  = function() use ( $id ) {
+				if ( false !== strpos( $id, ':' ) && function_exists( 'wc_get_endpoint_url' ) ) {
+					list( $endpoint, $value ) = explode( ':', $id, 2 );
+					return wc_get_endpoint_url( $endpoint, $value, wc_get_page_permalink( 'myaccount' ) );
+				}
+				return wc_get_account_endpoint_url( $id );
+			};
 		} else {
 			return null;
 		}
@@ -196,14 +218,11 @@ class LT_Site_Scan {
 
 	/**
 	 * Every original that has a translation in a language, as one line per paragraph / title / label
-	 * ("\n…\n"), plus the fixed part of interface texts with %s placeholders. Kept until a translation changes.
+	 * ("\n…\n"), plus the fixed part of interface texts with %s placeholders. Kept for this request.
 	 */
 	private static function known( $language ) {
 		static $memo = array();
-		$signature = (string) get_option( 'lt_catalog_revision', '' ); // full resets; each saved translation clears the list below
 		if ( isset( $memo[ $language ] ) ) return $memo[ $language ];
-		$cached = get_transient( 'lt_scan_known_' . $language );
-		if ( is_array( $cached ) && ( $cached['sig'] ?? '' ) === $signature ) return $memo[ $language ] = $cached;
 		global $wpdb;
 		$lines = array(); $parts = array();
 		$rows  = $wpdb->get_results( $wpdb->prepare( 'SELECT object_type, source_text FROM ' . LT_Translation_Store::table() . " WHERE language_code=%s AND status IN ('translated','reviewed') AND TRIM(translated_text) <> '' AND field_key <> 'slug'", $language ) ); // phpcs:ignore WordPress.DB
@@ -222,8 +241,7 @@ class LT_Site_Scan {
 				}
 			}
 		}
-		$cached = array( 'sig' => $signature, 'text' => "\n" . implode( "\n", array_keys( $lines ) ) . "\n", 'parts' => array_keys( $parts ) );
-		set_transient( 'lt_scan_known_' . $language, $cached, DAY_IN_SECONDS );
+		$cached = array( 'text' => "\n" . implode( "\n", array_keys( $lines ) ) . "\n", 'parts' => array_keys( $parts ) );
 		return $memo[ $language ] = $cached;
 	}
 
@@ -301,6 +319,7 @@ class LT_Site_Scan {
 			'languages' => $languages,
 			'ignored'   => array_values( self::ignored() ),
 			'cart'      => $cart_url,
+			'visitorToken' => self::visitor_token(),
 			'labels'    => array(
 				/* translators: %d: minutes */
 				'estimate' => __( '%pages pages selected · about %min min', 'lightweight-translation' ),
@@ -372,8 +391,11 @@ class LT_Site_Scan {
     return frames[n];
   }
   // lt_scan: page opened by the check (lighter: no admin bar; texts are noted from the original page only).
-  function mark(url, kind) { var hash = url.indexOf('#'); if (hash > -1) url = url.slice(0, hash); return url + (url.indexOf('?') > -1 ? '&' : '?') + 'lt_scan=' + kind; }
-  async function read(view, url) {
+  // Pages are read as a visitor (signed token). My account pages stay in the administrator's session: logged out,
+  // they would only show the login form, never the customer texts (orders, addresses, account details).
+  function mark(url, kind, item) { var hash = url.indexOf('#'); if (hash > -1) url = url.slice(0, hash); var guest = !(item && String(item.key).indexOf('account:') === 0); return url + (url.indexOf('?') > -1 ? '&' : '?') + 'lt_scan=' + kind + (guest ? '&lt_scan_token=' + encodeURIComponent(cfg.visitorToken) : ''); }
+  async function read(view, url, mobile) {
+    view.style.width = mobile ? '390px' : '1280px';
     var doc;
     try { doc = await ltScan.load(view, url, WAIT, QUIET); }
     catch (e) { doc = await ltScan.load(view, url, WAIT, QUIET); } // a slow server under load: one more try
@@ -383,16 +405,30 @@ class LT_Site_Scan {
   // Only the page in the base language is read. The site then says, for every language, which of its
   // texts have no translation yet (one page read per item, whatever the number of languages).
   function fullMode() { var r = document.querySelector('input[name="lt-scan-mode"]:checked'); return !!r && 'full' === r.value; }
+  function combine(list, more) {
+    var byText = Object.create(null);
+    list.concat(more).forEach(function (entry) {
+      var key = String(entry.text || entry[0]).toLowerCase();
+      if (!byText[key]) byText[key] = entry;
+      else if (entry.visible || entry[1]) {
+        if (Array.isArray(byText[key])) byText[key][1] = 1;
+        else byText[key].visible = true;
+      }
+    });
+    return Object.keys(byText).map(function (key) { return byText[key]; });
+  }
   // In-depth check: the base page and every translated page are read and compared, as a visitor sees them.
   async function scanFull(item, view) {
-    var found = {}, original = null;
-    try { original = await read(view, mark(item.original, 'o')); } catch (e) { original = null; }
+    var found = {}, desktop = null, mobile = null;
+    try { desktop = await read(view, mark(item.original, 'o', item), false); } catch (e) { desktop = null; }
+    if (desktop) try { mobile = await read(view, mark(item.original, 'o', item), true); } catch (e) { mobile = null; }
     for (var i = 0; i < cfg.languages.length; i++) {
       var language = cfg.languages[i], url = item.urls[language];
       if (!url) continue;
-      if (!original) { found[language] = { u: url, e: 1 }; continue; }
+      if (!desktop) { found[language] = { u: url, e: 1 }; continue; }
       try {
-        var texts = ltScan.compare(original, await read(view, mark(url, 't')), skip);
+        var texts = ltScan.compare(desktop, await read(view, mark(url, 't', item), false), skip);
+        if (mobile) texts = combine(texts, ltScan.compare(mobile, await read(view, mark(url, 't', item), true), skip));
         found[language] = { u: url, t: texts.map(function (t) { return [t.text, t.visible ? 1 : 0]; }) };
       } catch (e) { found[language] = { u: url, e: 1 }; }
     }
@@ -401,7 +437,11 @@ class LT_Site_Scan {
   async function scan(item, view) {
     if (fullMode()) return scanFull(item, view);
     var texts = null;
-    try { texts = ltScan.list(await read(view, mark(item.original, 'o')), skip).slice(0, 800); } catch (e) { texts = null; }
+    try {
+      texts = ltScan.list(await read(view, mark(item.original, 'o', item), false), skip);
+      try { texts = combine(texts, ltScan.list(await read(view, mark(item.original, 'o', item), true), skip)); } catch (e) {}
+      texts = texts.slice(0, 800);
+    } catch (e) { texts = null; }
     await save({ key: item.key, label: item.label, original: item.original, texts: texts ? JSON.stringify(texts) : '', error: texts ? 0 : 1 });
   }
   async function run(reset) {
@@ -424,7 +464,7 @@ class LT_Site_Scan {
       }
       if (!items.length) { status.textContent = cfg.labels.nothing; return; }
       var testCart = document.getElementById('lt-scan-cart');
-      if (cfg.cart && testCart && testCart.checked) { status.textContent = cfg.labels.cart; try { await ltScan.load(frame, cfg.cart, 500); } catch (e) {} }
+      if (cfg.cart && testCart && testCart.checked) { status.textContent = cfg.labels.cart; try { await ltScan.load(frame, mark(cfg.cart, 'o'), 500); } catch (e) {} }
       var next = 0, finished = 0;
       async function worker(n) {
         var view = frameFor(n);
@@ -600,6 +640,7 @@ JS;
 			'original' => LT_Language_Router::url( $router->default_language() ),
 			'ajax' => admin_url( 'admin-ajax.php' ),
 			'nonce' => wp_create_nonce( 'lt_detected_texts' ),
+			'ignoreNonce' => wp_create_nonce( 'lt_site_scan' ),
 			'language' => $router->current_language(),
 			'ref' => self::current_ref(),
 			'translate' => LT_Admin_Navigation::url( 'lt-translate' ),
@@ -616,6 +657,7 @@ JS;
 				'unknown' => __( 'Content type not identified', 'lightweight-translation' ),
 				'translate' => __( 'Translate this text', 'lightweight-translation' ),
 				'close' => __( 'Close', 'lightweight-translation' ),
+				'ignore' => __( 'Same in every language', 'lightweight-translation' ),
 				'report'  => __( 'Scan the whole site', 'lightweight-translation' ),
 				'error'   => __( 'The original page could not be read.', 'lightweight-translation' ),
 			),

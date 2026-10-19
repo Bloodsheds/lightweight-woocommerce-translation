@@ -118,18 +118,22 @@ class LT_CSV_Export {
 		$string_source = sanitize_text_field( wp_unslash( $_REQUEST['string_source'] ?? '' ) );
 		$string_kind   = sanitize_key( $_REQUEST['string_kind'] ?? '' );
 		$string_group  = sanitize_text_field( wp_unslash( $_REQUEST['string_group'] ?? '' ) ); // WooCommerce, theme, one plugin… (LT_Sources)
-		$string_index  = ( $string_source || $string_kind || $string_group ) ? (array) get_option( 'lt_string_index', array() ) : array();
+		$string_index  = (array) get_option( 'lt_string_index', array() );
 
 		$name = 1 === count( $groups ) ? sanitize_title( str_replace( ':', '-', $groups[0] ) ) : 'content';
 		$compact = 'full' !== sanitize_key( $_REQUEST['format'] ?? 'full' );
 		$split   = in_array( absint( $_REQUEST['split'] ?? 0 ), array( 100, 250, 500, 1000 ), true ) ? absint( $_REQUEST['split'] ) : 0;
 		$header  = $compact ? array_merge( array( 'key', 'source_text' ), $languages ) : self::COLUMNS;
 		$rows    = array();
+		$seen    = array();
 		foreach ( $groups as $group ) {
 			foreach ( ( null !== $only_ids ? array_map( 'absint', array_map( function( $ref ) { return substr( $ref, strpos( $ref, '|' ) + 1 ); }, array_keys( array_filter( $only_ids, function( $v, $ref ) use ( $group ) { return 0 === strpos( $ref, $group . '|' ); }, ARRAY_FILTER_USE_BOTH ) ) ) ) : LT_Content_Catalog::item_ids( $group ) ) as $id ) {
-				$item = LT_Content_Catalog::item( $group, $id );
-				if ( ! $item ) continue;
-				foreach ( $item['fields'] as $field => $source ) {
+				foreach ( self::entries( $group, $id ) as $entry ) {
+					$field = $entry['field']; $source = $entry['source'];
+					$item = array( 'type' => $entry['type'], 'id' => $entry['id'], 'title' => $entry['title'] );
+					$ref = $item['type'] . '|' . $item['id'] . '|' . $field;
+					if ( 'string' === $item['type'] && ( ! empty( $string_index[ $field ]['x'] ) || LT_Code_Scanner::admin_only( (array) ( $string_index[ $field ] ?? array() ) ) ) ) continue;
+					if ( isset( $seen[ $ref ] ) ) continue;
 					if ( 'slug' === $field && ! $slugs ) continue;
 					if ( 'string' === $group && ( $string_source || $string_kind || $string_group ) ) {
 						$entry = $string_index[ $field ] ?? null;
@@ -140,6 +144,7 @@ class LT_CSV_Export {
 						if ( $string_group && LT_Sources::group_of( $field, $entry ) !== $string_group ) continue;
 						if ( ! apply_filters( 'lt_export_string_include', true, $field, $entry, $_REQUEST ) ) continue;
 					}
+					$seen[ $ref ] = true;
 					if ( $compact ) { // one row per text, one column per language (the original is sent once)
 						$cells = array(); $todo = false;
 						foreach ( $languages as $language ) {
@@ -159,8 +164,23 @@ class LT_CSV_Export {
 				}
 			}
 		}
+		if ( ! $rows ) wp_die( esc_html__( 'No texts need translating in this selection. Choose Everything to export translations already completed.', 'lightweight-translation' ), '', array( 'back_link' => true ) );
 		$this->send( 'translations-' . $name . '-' . implode( '-', $languages ), $header, $rows, $split, $delimiter );
 		exit;
+	}
+
+	/** Exactly what the panel and the page counters include, including shared blocks and visible strings. */
+	public static function entries( $group, $id ) {
+		$item = LT_Content_Catalog::item( $group, $id );
+		if ( ! $item ) return array();
+		$out = array();
+		if ( 'post:page' === $group ) {
+			$model = LT_Status_Panel::model( $group, $id );
+			if ( $model ) foreach ( $model['sections'] as $section ) foreach ( $section['entries'] as $entry ) $out[] = $entry + array( 'title' => $item['title'] . ( empty( $section['own'] ) ? ' → ' . $section['title'] : '' ) );
+		} else {
+			foreach ( $item['fields'] as $field => $source ) $out[] = array( 'type' => $item['type'], 'id' => $item['id'], 'field' => $field, 'source' => $source, 'title' => $item['title'] );
+		}
+		return $out;
 	}
 
 	/** CSV text of some rows (UTF-8 BOM, so Excel shows accents). */

@@ -20,7 +20,7 @@ class LT_Term_Editor {
 
 	public function register() {
 		if ( ! $this->languages() ) return;
-		$taxonomies = get_taxonomies( array( 'public' => true ), 'names' );
+		$taxonomies = LT_Content_Catalog::public_taxonomies();
 		if ( function_exists( 'wc_get_attribute_taxonomy_names' ) ) $taxonomies = array_merge( $taxonomies, wc_get_attribute_taxonomy_names() );
 		foreach ( array_unique( $taxonomies ) as $taxonomy ) {
 			if ( 'post_format' === $taxonomy ) continue;

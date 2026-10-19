@@ -24,10 +24,10 @@ class LT_Code_Scanner {
 	/** Calls / words that mean "this text is shown to the customer as a message". */
 	const MESSAGE_HINTS = '/^(wc_add_notice|wc_print_notice|wc_add_wp_error_notices|wp_send_json|wp_send_json_error|wp_send_json_success|wp_die|add_error|add_notice|wc_print_notices|wc_get_notice|wp_localize_script|wp_add_inline_script|wc_add_to_cart_message|add_to_cart_message)$|exception$|error$|notice$/i';
 	const MESSAGE_KEYS  = '/i18n|message|error|notice|alert|confirm|warning|success|fail|invalid|required|empty|added|removed|select|choose|please/i';
-	const FRONT_JS      = '/(frontend|wc-blocks-checkout|wc-blocks-components|blocks-checkout|blocks-components|mini-cart|price-format|wc-cart-fragments|add-to-cart|single-product|checkout|cart)[^\/]*\.js$/i';
+	const FRONT_JS      = '/(public|front(?:end)?|widget|slider|form|frontend|wc-blocks-checkout|wc-blocks-components|blocks-checkout|blocks-components|mini-cart|price-format|wc-cart-fragments|add-to-cart|single-product|checkout|cart)[^\/]*\.js$/i';
 	const JS_STRING     = '"((?:[^"\\\\]|\\\\.)*)"|\'((?:[^\'\\\\]|\\\\.)*)\'';
 	const SKIP_DIRS     = '#/(vendor|node_modules|tests?|\.git|languages|i18n/languages|packages/[^/]+/tests|bin|cli|lib/[^/]*phpunit)/#i';
-	const ADMIN_DIRS    = '#/(admin|includes/admin|src/Admin|src/Internal/Admin|wp-admin|backend|dashboard)/#i';
+	const ADMIN_DIRS    = '#/(admin|includes/admin|src/Admin|src/Internal/Admin|wp-admin|backend|dashboard|importers?|importer/parsers)/#i'; // importer: WoodMart Core's demo importer
 
 	private static $instance;
 	public static function instance() { return self::$instance ?: ( self::$instance = new self() ); }
@@ -59,7 +59,7 @@ class LT_Code_Scanner {
 			$relative  = '/' . ltrim( str_replace( '\\', '/', substr( $file->getPathname(), strlen( $dir ) ) ), '/' );
 			if ( 'js' === $extension ) {
 				// Only front-end bundles (block checkout, cart, mini cart…): texts displayed by JavaScript.
-				if ( ! preg_match( self::FRONT_JS, basename( $relative ) ) || preg_match( '/editor|admin|\.asset\./i', $relative ) || $file->getSize() > 4 * self::MAX_FILE ) continue;
+				if ( ( ! preg_match( self::FRONT_JS, basename( $relative ) ) && ! preg_match( '#/(public|frontend|front|blocks/(?:cart|checkout|mini-cart))/[^?]*\.js$#i', $relative ) ) || preg_match( '/editor|admin|backend|dashboard|\.asset\./i', $relative ) || $file->getSize() > 4 * self::MAX_FILE ) continue;
 			} elseif ( 'php' !== $extension || $file->getSize() > self::MAX_FILE ) {
 				continue;
 			}
@@ -83,6 +83,27 @@ class LT_Code_Scanner {
 		return stripcslashes( substr( $raw, 1, -1 ) );
 	}
 
+	private static function literal_expression( $tokens ) {
+		if ( ! $tokens ) return null;
+		$out = ''; $literal = true;
+		foreach ( $tokens as $token ) {
+			if ( $literal ) { $part = self::literal( $token ); if ( null === $part ) return null; $out .= $part; }
+			elseif ( '.' !== $token ) return null;
+			$literal = ! $literal;
+		}
+		return $literal ? null : $out;
+	}
+
+	/** Front-end hook callbacks whose names alone do not reveal where they run. */
+	private static function front_callbacks( $code ) {
+		$names = array();
+		$pattern = '~\b(add_action|add_filter|add_shortcode)\s*\(\s*([\'"])([^\'"]+)\2\s*,\s*(?:array\s*\(|\[)?\s*(?:(?:\$this|__CLASS__|[A-Za-z_\\\\]+::class|[\'"][^\'"]+[\'"])\s*,\s*)?([\'"])([A-Za-z_][A-Za-z0-9_]*)\4~';
+		if ( preg_match_all( $pattern, $code, $matches, PREG_SET_ORDER ) ) foreach ( $matches as $m ) {
+			if ( 'add_shortcode' === $m[1] || preg_match( '/^(wp_enqueue_scripts|wp_head|wp_footer|template_redirect|the_content|the_excerpt|widget_|woocommerce_(?:before_|after_|checkout|cart|payment|account|email)|wp_ajax_nopriv_)/', $m[3] ) ) $names[ $m[5] ] = true;
+		}
+		return $names;
+	}
+
 	/* Audience detection (who sees the text). Admin signals exclude a text, front signals confirm it. */
 	const ADMIN_CLASS = '/admin|settings|meta_?box|wizard|install|upgrad|updater|tracker|import|export|(^|_)cli|report|dashboard|onboard|setup|system_?status|list_?table|privacy|tools|debug|logger|inbox|marketplace|(^|_)rest(_|$)|rest_?api|controller|schema|migration|deprecat|customizer/i';
 	const ADMIN_FUNC  = '/(^|_)(admin|settings|options_page|meta_?box|metabox|setup|wizard|install|upgrade|cli|schema|columns?|bulk|screen|help|dashboard|report|tools|form_fields|admin_options|register_routes|collection_params|item_schema|privacy|exporter|eraser|plugin_row|action_links|row_meta|activation|deactivation|uninstall|items_per_page|pagination|list_table|screen_option)(_|$)/i';
@@ -90,10 +111,44 @@ class LT_Code_Scanner {
 	const ADMIN_KEYS  = '/^(desc|desc_tip|tooltip|help|help_tip|menu_name|all_items|add_new|add_new_item|edit_item|new_item|view_item|view_items|search_items|not_found|not_found_in_trash|parent_item|parent_item_colon|update_item|new_item_name|singular_name|items_list|items_list_navigation|filter_items_list|item_published|item_published_privately|item_updated|item_reverted_to_draft|item_scheduled|featured_image|set_featured_image|remove_featured_image|use_featured_image|insert_into_item|uploaded_to_this_item|archives|separate_items_with_commas|add_or_remove_items|choose_from_most_used|popular_items|back_to_items)$/i';
 	const ADMIN_CONTEXT = '/admin|dashboard|screen|list[ _-]?table|pagination|row[ _-]?action|bulk[ _-]?action|screen[ _-]?reader|column/i';
 	const ADMIN_UI_TEXT = '/^(number of items per page|items per page|per page|row actions|screen options|select a bulk action)$/i';
-	const FRONT_HINTS = '/front|public|cart|checkout|my_?account|shop|single_?product|template|shortcode|widget|store_?api|display|loop|order_?received|thank|mini_?cart|quick_?view|wishlist|compare|add_to_cart|login_form|register_form|lost_password|review|coupon|notice/i';
+	const FRONT_HINTS = '/front|public|cart|checkout|my_?account|shop|single_?product|template|shortcode|widget|store_?api|display|loop|order_?received|thank|mini_?cart|quick_?view|wishlist|compare|add_to_cart|login_form|register_form|lost_password|review|coupon|notice|payment_fields|process_payment|validate_fields|get_content_html|get_content_plain|validation|frontend_messages|default_messages|shortcode_output/i';
 	const FRONT_CALLS = '/^(wc_add_notice|wc_print_notice|wc_print_notices|wc_add_to_cart_message|wc_get_template|wc_get_template_html|woocommerce_form_field|wp_localize_script|wp_add_inline_script)$/i';
-	const FRONT_PATH  = '#/(templates?|template-parts|woocommerce|views/front|public|frontend|shortcodes?|widgets?)/#i';
+	const FRONT_PATH  = '#/(templates?|template-parts|woocommerce|views/front|public|frontend|StoreApi|store-api|shortcodes?|widgets?)/#i';
 	const ADMIN_CAPS  = '/^(manage_|edit_(others|plugins|theme|users|shop_)|install_|activate_|delete_|update_|administrator|export|import|list_users)/';
+
+	/** Branch bounds for simple admin guards (including `if ( is_admin() ) return;`). */
+	private static function guard_ranges( $tokens ) {
+		$ranges = array(); $count = count( $tokens );
+		$end = function( $start ) use ( $tokens, $count ) {
+			if ( '{' !== ( $tokens[ $start ] ?? '' ) ) { for ( $i = $start; $i < $count; $i++ ) if ( ';' === $tokens[ $i ] ) return $i; return $count - 1; }
+			$depth = 0;
+			for ( $i = $start; $i < $count; $i++ ) { if ( '{' === $tokens[ $i ] ) $depth++; if ( '}' === $tokens[ $i ] && 0 === --$depth ) return $i; }
+			return $count - 1;
+		};
+		for ( $i = 0; $i < $count; $i++ ) {
+			if ( ! is_array( $tokens[ $i ] ) || T_IF !== $tokens[ $i ][0] || '(' !== ( $tokens[ $i + 1 ] ?? '' ) ) continue;
+			$depth = 1; $condition = ''; $j = $i + 2;
+			for ( ; $j < $count; $j++ ) { $t = $tokens[ $j ]; if ( '(' === $t ) $depth++; if ( ')' === $t && 0 === --$depth ) break; $condition .= is_array( $t ) ? $t[1] : $t; }
+			if ( ! preg_match( '/^(!?)(?:is_admin|is_network_admin)\\(\\)$/', $condition, $m ) ) continue;
+			$audience = $m[1] ? 'front' : 'admin'; $start = $j + 1; $stop = $end( $start );
+			$ranges[] = array( $start, $stop, $audience );
+			$next = $stop + 1;
+			if ( is_array( $tokens[ $next ] ?? null ) && T_ELSE === $tokens[ $next ][0] ) { $ranges[] = array( $next + 1, $end( $next + 1 ), 'front' === $audience ? 'admin' : 'front' ); continue; }
+			$first = '{' === ( $tokens[ $start ] ?? '' ) ? $start + 1 : $start;
+			if ( ! is_array( $tokens[ $first ] ?? null ) || ! in_array( $tokens[ $first ][0], array( T_RETURN, T_THROW ), true ) ) continue;
+			// Find the end of the enclosing block, without following the next function.
+			$depth = 0; $last = $count - 1;
+			for ( $k = $next; $k < $count; $k++ ) { if ( '{' === $tokens[ $k ] ) $depth++; if ( '}' === $tokens[ $k ] ) { if ( 0 === $depth ) { $last = $k; break; } $depth--; } }
+			$ranges[] = array( $next, $last, 'front' === $audience ? 'admin' : 'front' );
+		}
+		return $ranges;
+	}
+
+	/** Definite dashboard-only source; kept translations can be hidden without deleting them. */
+	public static function admin_only( $entry ) {
+		$path = (string) ( $entry['p'] ?? '' );
+		return 'a' === ( $entry['a'] ?? '' ) || (bool) preg_match( self::ADMIN_DIRS, $path ) || (bool) preg_match( '#(?:^|/)(?:class[-_])?(?:admin|backend|dashboard|editor)(?:[-_.]|$)#i', $path );
+	}
 
 	/**
 	 * Extracts translatable texts from PHP source.
@@ -108,6 +163,9 @@ class LT_Code_Scanner {
 		$count  = count( $tokens );
 		$names  = self::name_tokens();
 		$front_file = (bool) preg_match( self::FRONT_PATH, $path );
+		$admin_file = (bool) preg_match( self::ADMIN_DIRS, $path ) || (bool) preg_match( '#(?:^|/)(?:class[-_])?(?:admin|backend|dashboard|editor)(?:[-_.]|$)#i', $path );
+		$callbacks = self::front_callbacks( $code );
+		$guards = self::guard_ranges( $tokens );
 		$statement_start = 0;
 		$depth   = 0;
 		$scopes  = array(); // [type, name, depth, admin_guard, front_guard]
@@ -134,21 +192,6 @@ class LT_Code_Scanner {
 			if ( in_array( $t, array( ';', '{', '}' ), true ) ) { $statement_start = $i + 1; continue; }
 			if ( ! is_array( $t ) || ! in_array( $t[0], $names, true ) || '(' !== ( $tokens[ $i + 1 ] ?? '' ) ) continue;
 			$name = ltrim( $t[1], '\\' );
-			// Guards inside the current function: is_admin(), current_user_can( 'manage_…' ).
-			if ( $scopes && in_array( $name, array( 'is_admin', 'is_network_admin', 'is_super_admin', 'check_admin_referer', 'current_user_can' ), true ) ) {
-				$negated = '!' === ( $tokens[ $i - 1 ] ?? '' );
-				$cap     = 'current_user_can' === $name ? (string) self::literal( $tokens[ $i + 2 ] ?? null ) : 'admin';
-				$top     = count( $scopes ) - 1;
-				if ( 'current_user_can' === $name ) {
-					// current_user_can( 'manage_…' ) protects admin code, negated or not ( if ( ! … ) return; ).
-					if ( preg_match( self::ADMIN_CAPS, $cap ) ) $scopes[ $top ][3] = true;
-				} elseif ( $negated ) {
-					$scopes[ $top ][4] = true; // if ( ! is_admin() ) → shop code
-				} else {
-					$scopes[ $top ][3] = true;
-				}
-				continue;
-			}
 			if ( ! isset( self::FUNCTIONS[ $name ] ) ) continue;
 			$prev = $tokens[ $i - 1 ] ?? null;
 			if ( is_array( $prev ) && in_array( $prev[0], array( T_FUNCTION, T_OBJECT_OPERATOR, T_DOUBLE_COLON ), true ) ) continue; // a definition or a method, not the WP function
@@ -162,7 +205,7 @@ class LT_Code_Scanner {
 				$args[ count( $args ) - 1 ][] = $a;
 			}
 			$map   = self::FUNCTIONS[ $name ];
-			$value = function( $position ) use ( $args ) { return ( null !== $position && isset( $args[ $position ] ) && 1 === count( $args[ $position ] ) ) ? self::literal( $args[ $position ][0] ) : null; };
+			$value = function( $position ) use ( $args ) { return ( null !== $position && isset( $args[ $position ] ) && count( $args[ $position ] ) > 0 ) ? self::literal_expression( $args[ $position ] ) : null; };
 			$text  = $value( $map[0] );
 			if ( null === $text || '' === trim( $text ) ) continue;
 			$context = $value( $map[2] );
@@ -173,7 +216,7 @@ class LT_Code_Scanner {
 			if ( ! preg_match( '/\p{L}{2,}/u', strip_tags( preg_replace( '/%(\d+\$)?[sdfu]|&[a-z]+;/i', ' ', $text ) ) ) ) { $i = $j; continue; }
 
 			// Signals from the statement around the call.
-			$message = false; $admin = false; $front = false;
+			$message = false; $admin = $admin_file; $admin_class = false; $front = false; $callback_front = false;
 			for ( $k = $statement_start; $k < min( $count, $j + 1 ); $k++ ) {
 				$s = $tokens[ $k ];
 				if ( ! is_array( $s ) ) continue;
@@ -198,12 +241,14 @@ class LT_Code_Scanner {
 				if ( $scope[3] ) $admin = true;
 				if ( $scope[4] ) $front = true;
 				if ( '' === $scope[1] ) continue;
-				if ( preg_match( 'class' === $scope[0] ? self::ADMIN_CLASS : self::ADMIN_FUNC, $scope[1] ) ) $admin = true;
+				if ( 'class' === $scope[0] && preg_match( self::ADMIN_CLASS, $scope[1] ) ) $admin_class = true;
+				if ( 'function' === $scope[0] && preg_match( self::ADMIN_FUNC, $scope[1] ) ) $admin = true;
 				if ( preg_match( self::FRONT_HINTS, $scope[1] ) ) $front = true;
+				if ( 'function' === $scope[0] && isset( $callbacks[ $scope[1] ] ) ) { $front = true; $callback_front = true; }
 			}
+			foreach ( $guards as $guard ) if ( $i >= $guard[0] && $i <= $guard[1] ) { if ( 'admin' === $guard[2] ) $admin = true; else $front = true; }
 			if ( $front_file ) $front = true;
-			$explicit_front = $front && ( $front_file || preg_match( '/wc_add_notice|wc_print_notice|wc_add_to_cart_message/i', implode( ' ', array_map( function( $x ) { return is_array( $x ) ? $x[1] : $x; }, array_slice( $tokens, $statement_start, $j - $statement_start + 1 ) ) ) ) );
-			$audience = ( $admin && ! $explicit_front ) ? 'admin' : ( $front ? 'front' : 'unknown' );
+			$audience = ( $admin || ( $admin_class && ! $front_file && ! $callback_front ) ) ? 'admin' : ( $front ? 'front' : 'unknown' );
 			$found[] = array( $text, $value( $map[1] ), $context, $value( $map[3] ), $message, $audience );
 			$i = $j;
 		}
@@ -261,6 +306,10 @@ class LT_Code_Scanner {
 				$found[] = array( $text, $get( $spec[1][1] ), $get( $spec[1][2] ), $get( $spec[1][3] ), false, 'front' );
 			}
 		}
+		if ( preg_match_all( '/(?:^|[^\\w$])__\\)?\\(\\s*(?:' . $s . ')\\s*\\)/', $code, $matches, PREG_SET_ORDER ) ) foreach ( $matches as $m ) {
+			$text = self::js_literal( $m[1] ?? '', $m[2] ?? '' );
+			if ( preg_match( '/\\p{L}{2,}/u', strip_tags( $text ) ) ) $found[] = array( $text, null, null, null, false, 'front' );
+		}
 		return $found;
 	}
 
@@ -276,7 +325,7 @@ class LT_Code_Scanner {
 		$targets  = self::targets();
 		$key      = sanitize_text_field( wp_unslash( $_POST['target'] ?? '' ) );
 		$offset   = absint( $_POST['offset'] ?? 0 );
-		$mode     = sanitize_key( $_POST['mode'] ?? ( empty( $_POST['messages_only'] ) ? 'all' : 'messages' ) ); // messages | all | strict
+		$mode     = sanitize_key( $_POST['mode'] ?? ( empty( $_POST['messages_only'] ) ? 'strict' : 'messages' ) ); // messages | all | strict
 		$reset    = ! empty( $_POST['reset'] ) && 0 === $offset;
 		if ( ! isset( $targets[ $key ] ) ) wp_send_json_error( array( 'message' => 'Unknown plugin' ), 400 );
 		$target = $targets[ $key ];
@@ -289,12 +338,15 @@ class LT_Code_Scanner {
 		if ( function_exists( 'set_time_limit' ) ) @set_time_limit( 60 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 
 		// Read texts in the site language, not the admin user's language.
-		$switched = get_locale() !== determine_locale() && switch_to_locale( get_locale() );
+		$site_locale = (string) get_option( 'WPLANG', '' ) ?: 'en_US';
+		$switched = get_locale() !== $site_locale && switch_to_locale( $site_locale );
 		$index    = (array) get_option( self::INDEX, array() );
 		$js_map   = (array) get_option( 'lt_js_strings', array() ); // domain => [ msgid (with context) => plural msgid ]
 		if ( $reset ) $index = self::purge( $index, function( $entry ) use ( $key ) { return ( $entry['s'] ?? '' ) === $key; } );
 		$domains  = array();
 		$added    = 0;
+		$found    = array();
+		$skipped  = 0;
 		$start    = microtime( true );
 		for ( ; $offset < $total && microtime( true ) - $start < self::BATCH_TIME; $offset++ ) {
 			$code = file_get_contents( $files[ $offset ] ); // phpcs:ignore WordPress.WP.AlternativeFunctions
@@ -303,7 +355,14 @@ class LT_Code_Scanner {
 			$is_js = '.js' === strtolower( substr( $files[ $offset ], -3 ) );
 			foreach ( $is_js ? self::extract_js( $code ) : self::extract( $code, $relative ) as $entry ) {
 				list( $text, $plural, $context, $domain, $is_message, $audience ) = $entry;
-				if ( 'admin' === $audience ) continue;                                // never shown to customers
+				if ( 'admin' === $audience ) {
+					$skipped++;
+					foreach ( array_filter( array( $text, $plural ), 'is_string' ) as $msgid ) {
+						$field = LT_String_Keys::field( $domain ?: $target['domain'], null !== $context ? $context . "\x04" . $msgid : $msgid );
+						if ( isset( $index[ $field ] ) && ( $index[ $field ]['s'] ?? '' ) === $key && ( $index[ $field ]['d'] ?? '' ) === $target['domain'] && ! isset( $found[ $field ] ) && empty( $index[ $field ]['v'] ) ) $index[ $field ]['a'] = 'a';
+					}
+					continue;
+				}                                // never shown to customers
 				if ( 'messages' === $mode && ! $is_message ) continue;
 				if ( 'strict' === $mode && 'front' !== $audience ) continue;
 				if ( 'smart' === $mode && 'front' !== $audience && ! ( $is_message && 'unknown' === $audience ) ) continue; // recommended: shop texts + customer messages
@@ -313,14 +372,13 @@ class LT_Code_Scanner {
 				if ( null !== $plural ) $forms[ $plural ] = 2;
 				foreach ( $forms as $msgid => $number ) {
 					$lookup = null !== $context ? $context . "\x04" . $msgid : $msgid;
-					$field  = 'string_' . md5( $lookup );
+					$field  = LT_String_Keys::field( $domain, $lookup );
+					$found[ $field ] = true;
 					$source = 2 === $number ? _n( $text, $plural, 2, $domain ) : self::source( $msgid, $context, $domain ); // phpcs:ignore WordPress.WP.I18n
 					if ( null !== $context && 2 === $number ) $source = _nx( $text, $plural, 2, $context, $domain ); // phpcs:ignore WordPress.WP.I18n
-					foreach ( $langs as $language ) LT_Translation_Store::collect_empty( $language, $field, $source );
+					foreach ( $langs as $language ) LT_Translation_Store::collect_empty( $language, $field, $source, LT_String_Keys::legacy( $lookup ) );
 					if ( ! isset( $index[ $field ] ) ) $added++;
-					// A plugin reusing a WooCommerce / theme text: the text stays listed under WooCommerce / the theme.
-					$owner = ( isset( $index[ $field ]['d'] ) && in_array( LT_Sources::group_of( $field, $index[ $field ] ), LT_Sources::BASE, true ) && ! in_array( LT_Sources::group_of( $field, array( 'd' => $domain ) ), LT_Sources::BASE, true ) ) ? $index[ $field ]['d'] : $domain;
-					$index[ $field ] = array( 'd' => $owner, 't' => ( $is_message || ! empty( $index[ $field ]['t'] ) && 'm' === $index[ $field ]['t'] ) ? 'm' : 'l', 's' => $key, 'a' => 'front' === $audience ? 'f' : 'u', 'p' => $relative ) + ( ( 'emails' === $path || ! empty( $index[ $field ]['e'] ) ) ? array( 'e' => 1 ) : array() ) + ( ( $is_js || ! empty( $index[ $field ]['j'] ) ) ? array( 'j' => 1 ) : array() ) + ( $index[ $field ] ?? array() );
+					$index[ $field ] = array( 'd' => $domain, 't' => ( $is_message || ! empty( $index[ $field ]['t'] ) && 'm' === $index[ $field ]['t'] ) ? 'm' : 'l', 's' => $key, 'a' => 'front' === $audience ? 'f' : 'u', 'p' => $relative ) + ( ( 'emails' === $path || ! empty( $index[ $field ]['e'] ) ) ? array( 'e' => 1 ) : array() ) + ( ( $is_js || ! empty( $index[ $field ]['j'] ) ) ? array( 'j' => 1 ) : array() ) + ( $index[ $field ] ?? array() );
 				}
 				if ( $is_js ) $js_map[ $domain ][ null !== $context ? $context . "\x04" . $text : $text ] = (string) $plural; // used to translate JavaScript texts
 			}
@@ -332,6 +390,6 @@ class LT_Code_Scanner {
 		$current = LT_Frontend_Filters::domains();
 		if ( ! in_array( '*', $current, true ) ) update_option( 'lt_string_domains', implode( ', ', array_unique( array_merge( $current, array_keys( $domains ) ) ) ) );
 		LT_Content_Catalog::strings_changed();
-		wp_send_json_success( array( 'offset' => $offset, 'total' => $total, 'added' => $added, 'done' => $offset >= $total ) );
+		wp_send_json_success( array( 'offset' => $offset, 'total' => $total, 'added' => $added, 'found' => count( $found ), 'skipped_admin' => $skipped, 'done' => $offset >= $total ) );
 	}
 }

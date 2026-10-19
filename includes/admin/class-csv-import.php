@@ -101,6 +101,7 @@ class LT_CSV_Import {
 		if ( ! empty( $_POST['skip_empty'] ) && '' === trim( $translated ) ) { $counts['ignored']++; return; } // phpcs:ignore WordPress.Security.NonceVerification -- checked in import()
 
 		$source = LT_Content_Catalog::current_source( $type, $id, $field );
+		if ( 'email' === $type && ( 0 !== $id || ( function_exists( 'WC' ) && null === $source ) ) ) { $counts['errors']++; return; }
 		if ( null === $source ) {
 			if ( ! $global ) { $counts['errors']++; return; } // The object no longer exists.
 			$existing_source = LT_Translation_Store::get( $language, $type, 0, $field );
@@ -115,7 +116,7 @@ class LT_CSV_Import {
 			$counts['unchanged']++;
 			return;
 		}
-		LT_Translation_Store::save( array( 'language_code' => $language, 'object_type' => $type, 'object_id' => $id, 'field_key' => $field, 'source_text' => $source, 'translated_text' => $translated, 'status' => '' === trim( $translated ) ? 'empty' : ( 'reviewed' === ( $data['status'] ?? '' ) ? 'reviewed' : 'translated' ) ) );
-		$counts['imported']++;
+		$result = LT_Translation_Store::save( array( 'language_code' => $language, 'object_type' => $type, 'object_id' => $id, 'field_key' => $field, 'source_text' => $source, 'translated_text' => $translated, 'status' => '' === trim( $translated ) ? 'empty' : ( 'reviewed' === ( $data['status'] ?? '' ) ? 'reviewed' : 'translated' ) ) );
+		$counts[ false === $result ? 'errors' : 'imported' ]++;
 	}
 }

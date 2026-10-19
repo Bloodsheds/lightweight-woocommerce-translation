@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: Lightweight Translation 0.42.0\nLanguage: fr_FR\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n > 1);\nX-Domain: lightweight-translation\n"
+msgstr "Project-Id-Version: Lightweight Translation 1.9.3\nLanguage: fr_FR\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n > 1);\nX-Domain: lightweight-translation\nPO-Revision-Date: 2026-10-18 00:00+0000\nLast-Translator: Lightweight Translation\nLanguage-Team: French\n"
 
 msgid "\"Hidden\": the language is not in the switcher nor in hreflang tags, and visitors are sent back to the original. Logged-in editors can still open it to check the translation before publishing it."
 msgstr "« Masquée » : la langue n’apparaît ni dans le sélecteur ni dans les balises hreflang. Les visiteurs voient la version originale. Les éditeurs connectés peuvent vérifier la traduction avant sa publication."
@@ -12,6 +12,12 @@ msgstr "Colonne « Traductions » dans les listes de pages, articles et produits
 
 msgid "%1$d / %2$d translated"
 msgstr "%1$d / %2$d traduits"
+
+msgid "%1$d / %2$d translated in every language"
+msgstr "%1$d / %2$d traduits dans toutes les langues"
+
+msgid "No texts collected yet"
+msgstr "Aucun texte recueilli pour le moment"
 
 msgid "%1$d more text comes from plugins / themes not enabled for translation: %2$s."
 msgid_plural "%1$d more texts come from plugins / themes not enabled for translation: %2$s."
@@ -1975,8 +1981,8 @@ msgstr "Ce fichier n’est pas une sauvegarde complète Lightweight Translation 
 msgid "This item no longer exists."
 msgstr "Ce contenu n’existe plus."
 
-msgid "This page has not been read yet: open it on the site while logged in (or use “Read all pages”)."
-msgstr "Cette page n’a pas encore été vérifiée : ouvrez-la en étant connecté ou vérifiez le site."
+msgid "This page has not been read yet: open it from the list on the left, or turn on “Record the texts of the pages I visit” in the 🌐 Translate menu of the site."
+msgstr "Cette page n’a pas encore été lue : ouvrez-la depuis la liste de gauche, ou activez « Noter les textes des pages que je visite » dans le menu 🌐 Traduire du site."
 
 msgid "This reads the active theme and its companion plugin in the background. Existing translations are preserved."
 msgstr "Cette opération analyse le thème actif et son extension associée en arrière-plan. Les traductions existantes sont conservées."
@@ -2262,6 +2268,21 @@ msgstr "Widgets des colonnes latérales, filtres de boutique et pieds de page"
 
 msgid "Wishlist & compare"
 msgstr "Liste d’envies et comparaison"
+
+msgid "Search & filters"
+msgstr "Recherche et filtres"
+
+msgid "Sliders & galleries"
+msgstr "Diaporamas et galeries"
+
+msgid "Blog & posts"
+msgstr "Blog et articles"
+
+msgid "Product reviews"
+msgstr "Avis produits"
+
+msgid "Some older theme texts have no saved file location. Scan the theme to classify them more precisely."
+msgstr "Certains anciens textes du thème n’ont pas de fichier source enregistré. Analysez le thème pour les classer plus précisément."
 
 msgid "Without category"
 msgstr "Sans catégorie"
@@ -2607,3 +2628,177 @@ msgstr "Pages lues dans la langue de base (%1$s). Ci-dessous, pour chaque langue
 
 msgid "%1$s: %2$d pages with texts to translate, %3$d fully translated"
 msgstr "%1$s : %2$d pages avec des textes à traduire, %3$d entièrement traduites"
+
+msgid "Subject, heading and additional content of each customer e-mail. Body texts are in Buttons & messages › Customer e-mails."
+msgstr "Objet, titre et contenu additionnel de chaque e-mail client. Les textes du corps sont dans Boutons et messages › E-mails clients."
+
+msgid "WooCommerce e-mails"
+msgstr "E-mails WooCommerce"
+
+msgid "Text"
+msgstr "Texte"
+
+msgid "No texts need translating in this selection. Choose Everything to export translations already completed."
+msgstr "Aucun texte à traduire dans cette sélection. Choisissez « Tout » pour exporter les traductions déjà terminées."
+
+msgid "Some translations could not be saved. Keep every e-mail placeholder (for example {order_number}) exactly as in the original, then try again."
+msgstr "Certaines traductions n’ont pas pu être enregistrées. Conservez chaque variable d’e-mail (par exemple {order_number}) exactement comme dans l’original, puis réessayez."
+
+msgid "Select at least one plugin or theme to read."
+msgstr "Sélectionnez au moins une extension ou un thème à analyser."
+
+msgid "Done: %1$d matching texts found, %2$d new. Reloading…"
+msgstr "Terminé : %1$d textes correspondants trouvés, dont %2$d nouveaux. Rechargement…"
+
+msgid "Search in originals and translations. Tick texts, edit their translations here, then save the selection. Originals stay unchanged."
+msgstr "Recherchez dans les originaux et les traductions. Cochez les textes, modifiez leurs traductions ici, puis enregistrez la sélection. Les originaux restent inchangés."
+
+msgid "Show the full matching fields"
+msgstr "Afficher les champs correspondants en entier"
+
+msgid "Search for a word or sentence to edit every matching occurrence."
+msgstr "Recherchez un mot ou une phrase pour modifier les occurrences correspondantes."
+
+msgid "%d matching fields"
+msgstr "%d champs correspondants"
+
+msgid "Show 50 at a time"
+msgstr "Afficher 50 champs à la fois"
+
+msgid "Show all results"
+msgstr "Afficher tous les résultats"
+
+msgid "No matching text found."
+msgstr "Aucun texte correspondant trouvé."
+
+msgid "Save selected translations"
+msgstr "Enregistrer les traductions sélectionnées"
+
+msgid "Editing a field selects its row. Only changed translations in checked rows are saved. Keep placeholders and numbered formatting tags unchanged."
+msgstr "Modifier un champ sélectionne sa ligne. Seules les traductions modifiées des lignes cochées sont enregistrées. Conservez les variables et les balises de mise en forme numérotées."
+
+msgid "Tick at least one text first."
+msgstr "Cochez au moins un texte."
+
+msgid "Enter a translation first."
+msgstr "Saisissez d’abord une traduction."
+
+msgid "No changed translations in the selection."
+msgstr "Aucune traduction modifiée dans la sélection."
+
+msgid "%d fields will change. Review them, then apply to the fields and save."
+msgstr "%d champs seront modifiés. Vérifiez l’aperçu, puis appliquez aux champs et enregistrez."
+
+msgid "%d fields updated. Save the selection to keep these changes."
+msgstr "%d champs modifiés. Enregistrez la sélection pour conserver ces changements."
+
+msgid "No occurrence found in the selected translations."
+msgstr "Aucune occurrence trouvée dans les traductions sélectionnées."
+
+msgid "Choose one language or edit this full field directly: its existing translation has a different layout."
+msgstr "Choisissez une seule langue ou modifiez ce champ entier directement : sa traduction existante utilise une autre structure."
+
+msgid "Selected texts"
+msgstr "Textes sélectionnés"
+
+msgid "Target language"
+msgstr "Langue cible"
+
+msgid "Use the same translation"
+msgstr "Appliquer une même traduction"
+
+msgid "Translation for the checked texts…"
+msgstr "Traduction des textes cochés…"
+
+msgid "Fill selected fields"
+msgstr "Remplir les champs sélectionnés"
+
+msgid "Replace a word in the translations"
+msgstr "Remplacer un mot dans les traductions"
+
+msgid "Find"
+msgstr "Rechercher"
+
+msgid "Replace with…"
+msgstr "Remplacer par…"
+
+msgid "Replace with"
+msgstr "Remplacer par"
+
+msgid "Start from the original when a translation is empty"
+msgstr "Partir de l’original lorsqu’une traduction est vide"
+
+msgid "Preview replacement"
+msgstr "Prévisualiser le remplacement"
+
+msgid "Apply to the fields"
+msgstr "Appliquer aux champs"
+
+msgid "The original changed. Reload the results before saving this text."
+msgstr "L’original a changé. Rechargez les résultats avant d’enregistrer ce texte."
+
+msgid "Invalid translation fields."
+msgstr "Champs de traduction invalides."
+
+msgid "This translation changed in another editor. Reload the results before saving it."
+msgstr "Cette traduction a été modifiée dans un autre éditeur. Rechargez les résultats avant de l’enregistrer."
+
+msgid "Could not save this text. Keep all placeholders and check the original."
+msgstr "Impossible d’enregistrer ce texte. Conservez toutes les variables et vérifiez l’original."
+
+msgid "Order statuses"
+msgstr "Statuts de commande"
+
+msgid "Standard and custom order status labels shown to customers."
+msgstr "Libellés des statuts de commande standards et personnalisés affichés aux clients."
+
+msgid "Dates & calendar"
+msgstr "Dates et calendrier"
+
+msgid "Month names, weekdays and date format used in customer e-mails."
+msgstr "Noms des mois, jours de la semaine et format des dates des e-mails clients."
+
+msgid "Record the texts of the pages I visit (off)"
+msgstr "Noter les textes des pages que je visite (désactivé)"
+
+msgid "● Recording page texts: on (makes pages slower, click to stop)"
+msgstr "● Notation des textes : activée (ralentit les pages, cliquer pour arrêter)"
+
+msgid "Choose a country to translate its name and regions. Other countries can remain untranslated."
+msgstr "Choisissez un pays pour traduire son nom et ses régions. Les autres pays peuvent rester non traduits."
+
+msgid "Search a country…"
+msgstr "Rechercher un pays…"
+
+msgid "Country"
+msgstr "Pays"
+
+msgid "Regions"
+msgstr "Régions"
+
+msgid "Continents"
+msgstr "Continents"
+
+msgid "Other regions"
+msgstr "Autres régions"
+
+msgid "Back to countries"
+msgstr "Retour aux pays"
+
+msgid "%s country shown"
+msgid_plural "%s countries shown"
+msgstr[0] "%s pays affiché"
+msgstr[1] "%s pays affichés"
+
+msgid "%s country"
+msgid_plural "%s countries"
+msgstr[0] "%s pays"
+msgstr[1] "%s pays"
+
+msgid "Open a country to translate its name and all its regions together. Other countries can remain untranslated."
+msgstr "Ouvrez un pays pour traduire son nom et toutes ses régions ensemble. Les autres pays peuvent rester non traduits."
+
+msgid "%d region"
+msgid_plural "%d regions"
+msgstr[0] "%d région"
+msgstr[1] "%d régions"

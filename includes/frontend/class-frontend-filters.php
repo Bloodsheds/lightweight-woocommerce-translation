@@ -22,7 +22,8 @@ class LT_Frontend_Filters {
 		add_filter( 'the_posts', array( $this, 'prime_posts' ), 20 );                     // performance: 1 query per list
 		add_filter( 'pre_render_block', array( $this, 'synced_pattern' ), 20, 2 );       // synced patterns (reusable blocks)
 		add_filter( 'pre_render_block', array( $this, 'embedded_block' ), 21, 2 );       // theme blocks (HTML blocks, layouts, popups…)
-		add_filter( 'wpml_object_id', array( $this, 'embedded_post' ), 20, 2 );         // themes announce the block they render this way
+		add_filter( 'wpml_object_id', array( $this, 'embedded_post' ), 20, 2 );
+		add_filter( 'content_pagination', array( $this, 'embedded_pages' ), 20, 2 ); // get_the_content( null, false, $post ): classic HTML blocks, product card templates…         // themes announce the block they render this way
 		// Widgets: titles, Text / Custom HTML widgets, block widgets (texts typed in Appearance › Widgets).
 		add_filter( 'widget_title', array( $this, 'widget_text' ), 20 );
 		add_filter( 'widget_text', array( $this, 'widget_text' ), 20 );
@@ -55,8 +56,10 @@ class LT_Frontend_Filters {
 		$type = $id ? get_post_type( $id ) : '';
 		if ( ! $type ) return $value;
 		$raw = (string) get_post_field( 'post_title', $id, 'raw' );
-		if ( '' === $raw || ( (string) $value !== $raw && (string) $value !== wptexturize( $raw ) ) ) return $this->t( $type, $id, 'title', $value );
-		$translated = apply_filters( 'lt_title_translation', $this->t( $type, $id, 'title', $raw ), $raw, $type, $id );
+		if ( '' === $raw || ( (string) $value !== $raw && (string) $value !== wptexturize( $raw ) ) ) return 'product_variation' === $type ? $value : $this->t( $type, $id, 'title', $value );
+		// WooCommerce variation names are assembled from the parent's title and attributes.
+		// Do not read an obsolete, per-variation title translation before that filter runs.
+		$translated = apply_filters( 'lt_title_translation', 'product_variation' === $type ? $raw : $this->t( $type, $id, 'title', $raw ), $raw, $type, $id );
 		return $translated === $raw ? $value : ( (string) $value === $raw ? $translated : wptexturize( $translated ) );
 	}
 	/**
@@ -111,7 +114,10 @@ class LT_Frontend_Filters {
 		$language = LT_Language_Router::instance()->current_language();
 		$by_type  = array();
 		foreach ( $items as $item ) if ( is_object( $item ) && ! empty( $item->object_id ) ) $by_type[ 'taxonomy' === ( $item->type ?? '' ) ? 'term' : (string) $item->object ][] = $item->object_id;
-		foreach ( $by_type as $type => $ids ) { if ( 'term' === $type ) LT_Translation_Store::prime( $language, $type, $ids ); else LT_Translation_Store::prime_fields( $language, $type, $ids, array( 'title', 'slug' ) ); } // one compact query per menu type
+		foreach ( $by_type as $type => $ids ) LT_Translation_Store::prime_fields( $language, $type, $ids, 'term' === $type ? array( 'term_name', 'term_description', 'slug' ) : array( 'title', 'slug' ) );
+		$custom = array();
+		foreach ( $items as $item ) if ( is_object( $item ) && 'custom' === ( $item->type ?? '' ) && ! empty( $item->url ) ) $custom[] = $item->url;
+		if ( $custom ) $this->prepare_urls( $custom ); // all custom links of the menu resolved together
 		foreach ( $items as $item ) {
 			if ( is_object( $item ) && 'custom' === ( $item->type ?? '' ) && ! empty( $item->url ) ) $item->url = $this->localize_url( $item->url ); // custom links typed with the original address
 			if ( ! is_object( $item ) || '' !== (string) get_post_field( 'post_title', $item->ID, 'raw' ) || empty( $item->object_id ) ) continue;
@@ -124,7 +130,7 @@ class LT_Frontend_Filters {
 		if ( ! $this->active() || ! is_array( $terms ) ) return $terms;
 		$ids = array();
 		foreach ( $terms as $term ) if ( $term instanceof WP_Term ) $ids[] = $term->term_id;
-		if ( count( $ids ) > 1 ) LT_Translation_Store::prime( LT_Language_Router::instance()->current_language(), 'term', $ids ); // one query for the whole list
+		if ( $ids ) LT_Translation_Store::prime_fields( LT_Language_Router::instance()->current_language(), 'term', $ids, array( 'term_name', 'term_description', 'slug' ) );
 		foreach ( $terms as $index => $term ) {
 			if ( $term instanceof WP_Term ) $terms[ $index ] = $this->translate_term( $term );
 		}
@@ -198,12 +204,14 @@ class LT_Frontend_Filters {
 		if ( '' === trim( $value ) ) return $value;
 		$hash = LT_Translation_Store::hash( $value );
 		$language = LT_Language_Router::instance()->current_language();
-		if ( ! array_key_exists( $hash, $cache ) ) {
-			if ( ! isset( LT_Translation_Store::content_hashes( $language )[ substr( $hash, 0, 16 ) ] ) ) { $cache[ $hash ] = null; return $value; } // not a translated content: no query
+		$key = $language . ':' . $hash;
+		if ( ! array_key_exists( $key, $cache ) ) {
 			global $wpdb;
-			$cache[ $hash ] = $wpdb->get_var( $wpdb->prepare( 'SELECT translated_text FROM ' . LT_Translation_Store::table() . " WHERE language_code=%s AND field_key='content' AND source_hash=%s AND status IN ('translated','reviewed','partial') AND translated_text <> '' LIMIT 1", $language, $hash ) ); // phpcs:ignore WordPress.DB
+			// A page normally renders only a handful of external blocks. An indexed lookup for
+			// each distinct block is cheaper than loading every content hash on every request.
+			$cache[ $key ] = $wpdb->get_var( $wpdb->prepare( 'SELECT translated_text FROM ' . LT_Translation_Store::table() . " WHERE language_code=%s AND field_key='content' AND source_hash=%s AND status IN ('translated','reviewed','partial') AND translated_text <> '' LIMIT 1", $language, $hash ) ); // phpcs:ignore WordPress.DB
 		}
-		return null !== $cache[ $hash ] ? LT_Content_Merger::merge( $value, (string) $cache[ $hash ] ) : $value;
+		return null !== $cache[ $key ] ? LT_Content_Merger::merge( $value, (string) $cache[ $key ] ) : $value;
 	}
 
 	/** Blocks of embedded posts about to be rendered: md5( original block ) => translated block. */
@@ -219,7 +227,6 @@ class LT_Frontend_Filters {
 		if ( ! $this->active() || ! is_numeric( $id ) || ! $id ) return $id;
 		$post = get_post( (int) $id );
 		if ( ! $post instanceof WP_Post || $type !== $post->post_type || in_array( $type, array( 'page', 'post', 'product', 'product_variation', 'attachment', 'nav_menu_item' ), true ) || (int) $id === (int) get_queried_object_id() ) return $id; // the page itself goes through the_content
-		$this->embedded = array();
 		$translated = $this->translated_post_content( $post );
 		if ( null === $translated || ! function_exists( 'parse_blocks' ) ) return $id;
 		$original = parse_blocks( $post->post_content );
@@ -229,16 +236,27 @@ class LT_Frontend_Filters {
 		return $id;
 	}
 
+	/**
+	 * Themes also read their blocks with get_the_content( null, false, $id ) (WoodMart HTML blocks without Gutenberg,
+	 * product card templates). WordPress prepares that content here: the translated content (original structure) is used.
+	 */
+	public function embedded_pages( $pages, $post ) {
+		if ( ! is_array( $pages ) || 1 !== count( $pages ) || ! $post instanceof WP_Post || ! in_array( $post->post_type, LT_Content_Catalog::EXTRA_POST_TYPES, true ) || in_array( $post->post_type, array( 'product_variation' ), true ) || (int) $post->ID === (int) get_queried_object_id() || ! $this->active() ) return $pages;
+		if ( (string) reset( $pages ) !== (string) $post->post_content ) return $pages; // already changed by someone else
+		$translated = $this->translated_post_content( $post );
+		return null === $translated ? $pages : array( $translated );
+	}
+
 	public function embedded_block( $pre, $block ) {
-		static $rendering = false;
-		if ( null !== $pre || $rendering || ! $this->embedded || ! is_array( $block ) ) return $pre;
+		static $rendering = array();
+		if ( null !== $pre || ! $this->embedded || ! is_array( $block ) ) return $pre;
 		$key = md5( serialize_block( $block ) );
-		if ( ! isset( $this->embedded[ $key ] ) ) return $pre;
+		if ( ! isset( $this->embedded[ $key ] ) || isset( $rendering[ $key ] ) ) return $pre;
 		$translated_block = array_shift( $this->embedded[ $key ] );
 		if ( ! $this->embedded[ $key ] ) unset( $this->embedded[ $key ] );
-		$rendering = true;
-		$html      = render_block( $translated_block );
-		$rendering = false;
+		$rendering[ $key ] = true;
+		try { $html = render_block( $translated_block ); }
+		finally { unset( $rendering[ $key ] ); }
 		return $this->localize_links( $html );
 	}
 
@@ -254,87 +272,10 @@ class LT_Frontend_Filters {
 		return null;
 	}
 
-	/* ---------- JavaScript texts (wp.i18n) ---------- */
-
-	/** Translation of one JavaScript text: [single, plural] or null. */
-	private function js_translation( $language, $msgid, $plural = '' ) {
-		$single = LT_Translation_Store::string_value( $language, 'string_' . md5( $msgid ) );
-		if ( null === $single ) return null;
-		$context = false !== strpos( $msgid, "\x04" ) ? substr( $msgid, 0, strpos( $msgid, "\x04" ) + 1 ) : '';
-		$many    = '' !== $plural ? LT_Translation_Store::string_value( $language, 'string_' . md5( $context . $plural ) ) : null;
-		return null !== $many ? array( $single, $many ) : array( $single );
-	}
-
-	/**
-	 * A script's translation file (JSON) is being loaded: replace the texts we have translated.
-	 * Same keys as in PHP: the original English text (with "context\x04" prefix when there is a context).
-	 */
-	public function script_translations( $json, $file = '', $handle = '', $domain = '' ) {
-		if ( ! $this->active() || ! is_string( $json ) || ! self::domain_allowed( $domain ) ) return $json;
-		$data = json_decode( $json, true );
-		if ( ! is_array( $data ) || empty( $data['locale_data'] ) ) return $json;
-		$language = LT_Language_Router::instance()->current_language();
-		$plurals  = ( (array) get_option( 'lt_js_strings', array() ) )[ $domain ] ?? array();
-		$changed  = false;
-		foreach ( $data['locale_data'] as $set => $messages ) {
-			foreach ( (array) $messages as $msgid => $values ) {
-				if ( '' === $msgid ) continue;
-				$translated = $this->js_translation( $language, $msgid, $plurals[ $msgid ] ?? '' );
-				if ( null === $translated ) continue;
-				$data['locale_data'][ $set ][ $msgid ] = count( (array) $values ) > 1 && 1 === count( $translated ) ? array_fill( 0, count( (array) $values ), $translated[0] ) : $translated;
-				$changed = true;
-			}
-		}
-		return $changed ? wp_json_encode( $data ) : $json;
-	}
-
-	/** The site language has no translation file for this script: build one from our translations. */
-	public function missing_script_translations( $translations, $file = '', $handle = '', $domain = '' ) {
-		if ( null !== $translations || ! $this->active() || ! self::domain_allowed( $domain ) || ( $file && is_readable( $file ) ) ) return $translations;
-		$known = ( (array) get_option( 'lt_js_strings', array() ) )[ $domain ] ?? array();
-		if ( ! $known ) return $translations;
-		$language = LT_Language_Router::instance()->current_language();
-		$messages = array( '' => array( 'domain' => 'messages', 'lang' => $language, 'plural-forms' => 'nplurals=2; plural=(n != 1);' ) );
-		foreach ( $known as $msgid => $plural ) {
-			$translated = $this->js_translation( $language, $msgid, $plural );
-			if ( null !== $translated ) $messages[ $msgid ] = $translated;
-		}
-		return count( $messages ) > 1 ? wp_json_encode( array( 'domain' => 'messages', 'locale_data' => array( 'messages' => $messages ) ) ) : $translations;
-	}
-
 	/* ---------- Search ---------- */
 
-	/**
-	 * Search in the visitor's language: a search made on /fr/ also finds the posts / products whose FRENCH
-	 * title, content, excerpt or short description match (WordPress, WooCommerce and WoodMart AJAX search
-	 * all use WP_Query). Every word must match, like the normal WordPress search.
-	 */
-	public function search( $search, $query ) {
-		if ( ! $this->active() || '' === trim( (string) $search ) || ! is_object( $query ) || '' === trim( (string) $query->get( 's' ) ) ) return $search;
-		$ids = self::search_ids( LT_Language_Router::instance()->current_language(), (string) $query->get( 's' ) );
-		if ( ! $ids ) return $search;
-		global $wpdb;
-		$in = implode( ',', array_map( 'absint', $ids ) );
-		// $search is " AND ( …original conditions… ) …": keep it and add "OR the ID matched in the translation".
-		$password = is_user_logged_in() ? '' : " AND {$wpdb->posts}.post_password = ''"; // same rule as WordPress for protected posts
-		return preg_replace( '/^\s*AND\s*/i', ' AND ( ', $search, 1 ) . " OR ({$wpdb->posts}.ID IN ($in)$password) ) ";
-	}
-
-	/** IDs of posts whose translation contains every word of $terms (product variations → their product). */
-	public static function search_ids( $language, $terms ) {
-		global $wpdb;
-		$words = array_values( array_filter( array_map( 'trim', preg_split( '/\s+/u', wp_unslash( $terms ) ) ), function( $w ) { return mb_strlen( $w ) > 1; } ) );
-		if ( ! $words ) return array();
-		$table  = LT_Translation_Store::table();
-		$fields = "'title','content','excerpt','short_description'";
-		$ids    = null;
-		foreach ( array_slice( $words, 0, 6 ) as $word ) {
-			$found = array_map( 'absint', $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT object_id FROM $table WHERE language_code=%s AND field_key IN ($fields) AND status IN ('translated','reviewed','partial') AND translated_text LIKE %s LIMIT 1000", $language, '%' . $wpdb->esc_like( $word ) . '%' ) ) ); // phpcs:ignore WordPress.DB
-			$ids   = null === $ids ? $found : array_values( array_intersect( $ids, $found ) );
-			if ( ! $ids ) return array();
-		}
-		return array_slice( array_unique( $ids ), 0, 500 );
-	}
+	/** WordPress and WoodMart use the same matching layer, including the original site language. */
+	public function search( $search, $query ) { return LT_Multilingual_Search::filter( $search, $query ); }
 
 	/* ---------- Internal links ---------- */
 
@@ -344,41 +285,94 @@ class LT_Frontend_Filters {
 	 */
 	public function localize_links( $html ) {
 		if ( ! $this->active() || ! is_string( $html ) || false === stripos( $html, 'href' ) ) return $html;
-		return preg_replace_callback( '/(\bhref\s*=\s*)(["\'])([^"\']+)\2/i', function( $m ) { return $m[1] . $m[2] . esc_attr( $this->localize_url( html_entity_decode( $m[3] ) ) ) . $m[2]; }, $html );
+		$pattern = '/(\bhref\s*=\s*)(["\'])([^"\']+)\2/i';
+		// Every link of this HTML is resolved together: one query for the pages / products, one for the categories.
+		if ( preg_match_all( $pattern, $html, $found ) ) $this->prepare_urls( array_map( 'html_entity_decode', $found[3] ) );
+		return preg_replace_callback( $pattern, function( $m ) { return $m[1] . $m[2] . esc_attr( $this->localize_url( html_entity_decode( $m[3] ) ) ) . $m[2]; }, $html );
 	}
 
+	/** @var array Current-language address of each link already resolved in this request: language . url => url */
+	private $links = array();
+
 	public function localize_url( $url ) {
-		static $cache = array();
+		$key = LT_Language_Router::instance()->current_language() . $url;
+		if ( ! isset( $this->links[ $key ] ) ) $this->prepare_urls( array( $url ) );
+		return $this->links[ $key ];
+	}
+
+	/**
+	 * Resolves original-language links to their current-language address. A page, post or product is found by
+	 * the last part of its address (one query for all the links), a category / tag the same way (one query);
+	 * only the links still unknown after that go through url_to_postid(), one by one.
+	 */
+	public function prepare_urls( $urls ) {
+		global $wpdb;
 		$router = LT_Language_Router::instance();
 		$lang   = $router->current_language();
-		if ( isset( $cache[ $lang . $url ] ) ) return $cache[ $lang . $url ];
-		$home = home_url( '/' );
-		$abs  = $url;
-		if ( 0 === strpos( $url, '/' ) && 0 !== strpos( $url, '//' ) ) $abs = home_url( $url );                    // root-relative link
-		$same_site = 0 === strpos( preg_replace( '#^https?:#', '', $abs ), preg_replace( '#^https?:#', '', untrailingslashit( $home ) ) );
-		$parts     = wp_parse_url( $abs );
-		$path      = LT_Language_Router::relative_path( $abs );
-		$first     = explode( '/', $path )[0];
-		$skip      = ! $same_site || in_array( $first, array_merge( $router->languages(), array( 'wp-admin', 'wp-content', 'wp-includes', 'wp-json', 'wp-login.php', 'xmlrpc.php', 'feed' ) ), true ) || preg_match( '/\.[a-z0-9]{2,5}$/i', $path );
-		if ( $skip ) return $cache[ $lang . $url ] = $url;
-		$suffix = ( isset( $parts['query'] ) ? '?' . $parts['query'] : '' ) . ( isset( $parts['fragment'] ) ? '#' . $parts['fragment'] : '' );
-		$target = '';
+		$home   = home_url( '/' );
+		$todo   = array();
+		foreach ( array_unique( (array) $urls ) as $url ) {
+			$url = (string) $url;
+			$key = $lang . $url;
+			if ( isset( $this->links[ $key ] ) || isset( $todo[ $key ] ) ) continue;
+			$abs  = $url;
+			if ( 0 === strpos( $url, '/' ) && 0 !== strpos( $url, '//' ) ) $abs = home_url( $url );                    // root-relative link
+			$same_site = 0 === strpos( preg_replace( '#^https?:#', '', $abs ), preg_replace( '#^https?:#', '', untrailingslashit( $home ) ) );
+			$parts     = wp_parse_url( $abs );
+			$path      = LT_Language_Router::relative_path( $abs );
+			$first     = explode( '/', $path )[0];
+			$skip      = ! $same_site || in_array( $first, array_merge( $router->languages(), array( 'wp-admin', 'wp-content', 'wp-includes', 'wp-json', 'wp-login.php', 'xmlrpc.php', 'feed' ) ), true ) || preg_match( '/\.[a-z0-9]{2,5}$/i', $path );
+			if ( $skip ) { $this->links[ $key ] = $url; continue; }
+			$suffix = ( isset( $parts['query'] ) ? '?' . $parts['query'] : '' ) . ( isset( $parts['fragment'] ) ? '#' . $parts['fragment'] : '' );
+			$todo[ $key ] = array( 'abs' => $abs, 'path' => $path, 'suffix' => $suffix, 'slug' => '' === $path ? '' : basename( $path ), 'target' => '' );
+		}
+		if ( ! $todo ) return;
+		$default = $router->default_language();
+		$same_path = function( $link, $path ) { return is_string( $link ) && strtolower( rawurldecode( trim( LT_Language_Router::relative_path( $link ), '/' ) ) ) === strtolower( rawurldecode( trim( $path, '/' ) ) ); };
 		// A page, post or product: its permalink in the current language (translated slug).
-		$post_id = url_to_postid( strtok( $abs, '?#' ) );
-		if ( $post_id ) $target = get_permalink( $post_id );
-		// A category / tag: its link in the current language.
-		if ( ! $target && '' !== $path ) {
-			$slug = basename( $path );
-			foreach ( get_taxonomies( array( 'public' => true ), 'names' ) as $taxonomy ) {
-				$term = get_term_by( 'slug', $slug, $taxonomy );
-				if ( ! $term ) continue;
-				$original = $router->with_language( $router->default_language(), function() use ( $term ) { return get_term_link( $term ); } );
-				if ( ! is_wp_error( $original ) && trim( LT_Language_Router::relative_path( $original ), '/' ) === trim( $path, '/' ) ) { $link = get_term_link( $term ); if ( ! is_wp_error( $link ) ) $target = $link; break; }
+		$names = array();
+		foreach ( $todo as $item ) if ( '' !== $item['slug'] ) $names[ sanitize_title( rawurldecode( $item['slug'] ) ) ] = true;
+		$types = array_values( get_post_types( array( 'public' => true ), 'names' ) );
+		$by_name = array();
+		if ( $names && $types ) {
+			$names = array_keys( $names );
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT ID, post_name, post_type FROM {$wpdb->posts} WHERE post_status='publish' AND post_type IN (" . implode( ',', array_fill( 0, count( $types ), '%s' ) ) . ') AND post_name IN (' . implode( ',', array_fill( 0, count( $names ), '%s' ) ) . ') ORDER BY ID', array_merge( $types, $names ) ) ); // phpcs:ignore WordPress.DB
+			$by_type = array();
+			foreach ( (array) $rows as $row ) { $by_name[ $row->post_name ][] = (int) $row->ID; $by_type[ $row->post_type ][] = (int) $row->ID; }
+			foreach ( $by_type as $type => $ids ) LT_Translation_Store::prime_fields( $lang, $type, $ids, array( 'slug' ) ); // translated slugs of the new links, in one query per type
+			if ( $by_name && function_exists( '_prime_post_caches' ) ) _prime_post_caches( array_merge( ...array_values( $by_name ) ), true, false ); // terms: permalinks may contain the category
+		}
+		foreach ( $todo as $key => $item ) {
+			if ( '' === $item['slug'] ) continue;
+			foreach ( $by_name[ sanitize_title( rawurldecode( $item['slug'] ) ) ] ?? array() as $post_id ) {
+				$original = $router->with_language( $default, function() use ( $post_id ) { return get_permalink( $post_id ); } );
+				if ( $same_path( $original, $item['path'] ) ) { $todo[ $key ]['target'] = (string) get_permalink( $post_id ); break; }
 			}
 		}
-		// Anything else (shop, archives, home): same path with the language prefix and translated URL words.
-		if ( ! $target ) $target = trailingslashit( home_url( $lang . ( '' === $path ? '' : '/' . $router->translate_path_bases( $path, $lang ) ) ) );
-		return $cache[ $lang . $url ] = $target . $suffix;
+		// A category / tag: its link in the current language.
+		$slugs = array();
+		foreach ( $todo as $item ) if ( '' === $item['target'] && '' !== $item['slug'] ) $slugs[ $item['slug'] ] = true;
+		$taxonomies = $slugs ? LT_Content_Catalog::public_taxonomies() : array();
+		if ( $slugs && $taxonomies ) {
+			$terms = get_terms( array( 'taxonomy' => $taxonomies, 'slug' => array_keys( $slugs ), 'hide_empty' => false, 'suppress_filter' => true ) );
+			$by_slug = array();
+			if ( ! is_wp_error( $terms ) ) foreach ( $terms as $term ) $by_slug[ $term->slug ][] = $term;
+			foreach ( $todo as $key => $item ) {
+				if ( '' !== $item['target'] || '' === $item['slug'] ) continue;
+				foreach ( $by_slug[ sanitize_title( $item['slug'] ) ] ?? array() as $term ) {
+					$original = $router->with_language( $default, function() use ( $term ) { return get_term_link( $term ); } );
+					if ( ! is_wp_error( $original ) && trim( LT_Language_Router::relative_path( $original ), '/' ) === trim( $item['path'], '/' ) ) { $link = get_term_link( $term ); if ( ! is_wp_error( $link ) ) $todo[ $key ]['target'] = $link; break; }
+				}
+			}
+		}
+		foreach ( $todo as $key => $item ) {
+			$target = $item['target'];
+			// Not found above (home page, endpoints, attachments, other post types): WordPress's own lookup.
+			if ( '' === $target ) { $post_id = url_to_postid( strtok( $item['abs'], '?#' ) ); if ( $post_id ) $target = (string) get_permalink( $post_id ); }
+			// Anything else (shop, archives, home): same path with the language prefix and translated URL words.
+			if ( '' === $target ) $target = trailingslashit( home_url( $lang . ( '' === $item['path'] ? '' : '/' . $router->translate_path_bases( $item['path'], $lang ) ) ) );
+			$this->links[ $key ] = $target . $item['suffix'];
+		}
 	}
 
 	/* ---------- Widgets ---------- */
@@ -396,7 +390,11 @@ class LT_Frontend_Filters {
 	/** HTML widgets / block widgets: every piece of visible text is translated separately, the HTML is kept. */
 	public function widget_html( $html ) {
 		if ( ! is_string( $html ) || '' === trim( $html ) || is_admin() ) return $html;
-		return $this->localize_links( self::map_html_texts( $html, function( $text ) { return $this->string( $text, self::widget_key( $text ), 'widgets' ); } ) );
+		return $this->localize_links( LT_Public_HTML::map( $html, function( $text, $attribute, $stack ) {
+			if ( '' !== $attribute ) return $text;
+			foreach ( $stack as $node ) if ( preg_match( '/(?:^|\s)wpcf7(?:-|\s|$)/', $node['class'] ?? '' ) ) return $text;
+			return $this->string( $text, self::widget_key( $text ), 'widgets' );
+		} ) );
 	}
 
 	/** Applies $callback to each visible text node of $html (not inside <script>/<style>, not block comments). */
@@ -425,6 +423,8 @@ class LT_Frontend_Filters {
 				$instance  = is_array( $instances ) ? ( $instances[ (int) $m[2] ] ?? null ) : null;
 				if ( ! is_array( $instance ) ) continue;
 				if ( ! empty( $instance['title'] ) && is_string( $instance['title'] ) ) $texts[] = trim( $instance['title'] );
+				// WoodMart widgets: their other plain texts (banner subtitle, button, author name…).
+				if ( 0 === strpos( $m[1], 'woodmart-' ) ) foreach ( array( 'subtitle', 'btn_text', 'author_name', 'link_text', 'content' ) as $field ) if ( ! empty( $instance[ $field ] ) && is_string( $instance[ $field ] ) && false === strpos( $instance[ $field ], '<' ) ) $texts[] = trim( $instance[ $field ] );
 				if ( 'text' === $m[1] && ! empty( $instance['text'] ) && false === strpos( $instance['text'], '<' ) ) $texts[] = trim( $instance['text'] );
 				foreach ( array( 'content', 'text' ) as $field ) {
 					if ( empty( $instance[ $field ] ) || ! is_string( $instance[ $field ] ) || false === strpos( $instance[ $field ], '<' ) ) continue;
@@ -441,27 +441,92 @@ class LT_Frontend_Filters {
 	 * - "text_{md5(visible text)}": texts added by hand in Light translations › Interface texts,
 	 *   using the exact wording visitors see in the original language.
 	 */
-	public static function lookup_string( $language, $translation, $key ) {
+	public static function lookup_string( $language, $translation, $key, $domain = '' ) {
 		// Called for every text of every page: a plain array lookup, no database query, nothing done for
 		// texts that have no translation.
 		if ( ! $language || '' === (string) $translation ) return $translation;
-		$out = LT_Translation_Store::string_lookup( $language, 'string_' . md5( $key ), $translation );
+		if ( '' !== $domain ) {
+			$out = LT_Translation_Store::string_lookup( $language, LT_String_Keys::field( $domain, $key ), $translation );
+			if ( null !== $out ) return $out;
+		}
+		// Older installations stored gettext strings without their domain. Keep those translations
+		// available until the administrator edits the new, domain-specific row.
+		$out = LT_Translation_Store::string_lookup( $language, LT_String_Keys::legacy( $key ), $translation );
 		if ( null !== $out ) return $out;
-		// Same wording translated somewhere else (another plugin, another context, or added by hand).
-		$out = LT_Translation_Store::by_text( $language, $translation );
+		// Explicitly entered visible-text translations remain a fallback; unrelated plugin strings do not.
+		$out = LT_Translation_Store::manual_by_text( $language, $translation );
 		return null !== $out ? $out : $translation;
 	}
 
 
-	private function string( $translation, $key, $domain ) {
+	private function string( $translation, $key, $domain ) { return $this->string_parts( $translation, $key, $key, $translation, $domain ); }
+
+	/**
+	 * $key: the msgid the page displayed (noted for the translation lists); $lookup_key / $lookup_source: the msgid
+	 * and original wording whose translation is shown (they differ only for plurals, see plural()).
+	 */
+	private function string_parts( $translation, $key, $lookup_key, $lookup_source, $domain ) {
 		if ( '' === (string) $key ) return $translation;
-		if ( LT_Page_Texts::tracking() ) LT_Page_Texts::record( 'string_' . md5( $key ), $translation, $domain, self::domain_allowed( $domain ) );
-		if ( ! self::domain_allowed( $domain ) ) return $translation;
-		if ( ! $this->active() ) return $translation;
-		return self::lookup_string( LT_Language_Router::instance()->current_language(), $translation, $key );
+		$tracking = LT_Page_Texts::tracking();
+		if ( $tracking ) LT_Page_Texts::record( LT_String_Keys::field( $domain, $key ), $translation, $domain, self::domain_allowed( $domain ), LT_String_Keys::legacy( $key ) );
+		$out = $translation;
+		if ( self::domain_allowed( $domain ) && $this->active() ) {
+			$found = self::lookup_string( LT_Language_Router::instance()->current_language(), $lookup_source, $lookup_key, $domain );
+			if ( $found !== $lookup_source ) $out = $found;
+		}
+		// Before the page renders (form handlers), a text is only remembered: kept if a notice shows it.
+		if ( ! $tracking && LT_Page_Texts::may_record() ) LT_Page_Texts::remember( LT_String_Keys::field( $domain, $key ), $translation, $out, $domain, self::domain_allowed( $domain ), LT_String_Keys::legacy( $key ) );
+		return $out;
+	}
+
+	/**
+	 * Does a language use its singular form for $number? Two forms are stored per text: languages that use the
+	 * singular for 0 and 1 (French…) differ from English, which uses it for 1 only.
+	 */
+	public static function plural_is_single( $language, $number ) {
+		$code = strtolower( str_replace( '_', '-', (string) $language ) );
+		$base = explode( '-', $code )[0];
+		$zero_one = in_array( $base, array( 'fr', 'oc', 'br', 'ln', 'mg', 'wa', 'ak', 'am', 'hy', 'kab', 'ti', 'fil', 'tl' ), true ) || 'pt-br' === $code;
+		$number = abs( (float) $number );
+		return $zero_one ? $number < 2 : 1.0 === $number;
+	}
+
+	/**
+	 * Original wordings of a plural text (WordPress translations of the site, before any filter): [ singular, plural ].
+	 * Which one the page shows follows the site language rule; which translation is shown follows the visitor's language.
+	 */
+	public static function plural_forms( $single, $plural, $domain, $context = null ) {
+		$dictionary = get_translations_for_domain( (string) $domain );
+		return array( (string) $dictionary->translate_plural( $single, $plural, 1, $context ), (string) $dictionary->translate_plural( $single, $plural, 2, $context ) );
+	}
+
+	/** Translation of a plural text in $language, or null. $prefix: "context\x04" or ''. */
+	public static function plural_lookup( $language, $single, $plural, $number, $domain, $prefix = '', $context = null ) {
+		$forms  = self::plural_forms( $single, $plural, $domain, $context );
+		$one    = self::plural_is_single( $language, $number );
+		$source = $one ? $forms[0] : $forms[1];
+		$out    = self::lookup_string( $language, $source, $prefix . ( $one ? $single : $plural ), $domain );
+		if ( $out !== $source ) return $out;
+		// Only the other form was translated (it was the one shown in the site language): better than the original.
+		$other = $one ? $forms[1] : $forms[0];
+		$out   = self::lookup_string( $language, $other, $prefix . ( $one ? $plural : $single ), $domain );
+		return $out === $other ? null : $out;
+	}
+
+	private function plural( $translation, $single, $plural, $number, $domain, $context = null ) {
+		$prefix = null !== $context ? $context . "\x04" : '';
+		$forms  = self::plural_forms( $single, $plural, $domain, $context );
+		// The msgid the page displayed: the form WordPress chose for this number in the site language.
+		$shown  = $translation === $forms[0] && $translation !== $forms[1] ? $single : ( $translation === $forms[1] && $translation !== $forms[0] ? $plural : ( 1 === (int) $number ? $single : $plural ) );
+		$one    = $this->active() ? self::plural_is_single( LT_Language_Router::instance()->current_language(), $number ) : $shown === $single;
+		$target = $one ? $single : $plural;
+		$out    = $this->string_parts( $translation, $prefix . $shown, $prefix . $target, $one ? $forms[0] : $forms[1], $domain );
+		// The form the visitor's language needs has no translation, but the form shown in the site language has one.
+		if ( $out === $translation && $target !== $shown && self::domain_allowed( $domain ) && $this->active() ) $out = self::lookup_string( LT_Language_Router::instance()->current_language(), $translation, $prefix . $shown, $domain );
+		return $out;
 	}
 	public function gettext( $translation, $text, $domain ) { return $this->string( $translation, $text, $domain ); }
-	public function ngettext( $translation, $single, $plural, $number, $domain ) { return $this->string( $translation, 1 === (int) $number ? $single : $plural, $domain ); }
+	public function ngettext( $translation, $single, $plural, $number, $domain ) { return $this->plural( $translation, $single, $plural, $number, $domain ); }
 	public function gettext_with_context( $translation, $text, $context, $domain ) { return $this->string( $translation, $context . "\x04" . $text, $domain ); }
-	public function ngettext_with_context( $translation, $single, $plural, $number, $context, $domain ) { return $this->string( $translation, $context . "\x04" . ( 1 === (int) $number ? $single : $plural ), $domain ); }
+	public function ngettext_with_context( $translation, $single, $plural, $number, $context, $domain ) { return $this->plural( $translation, $single, $plural, $number, $domain, $context ); }
 }

@@ -11,6 +11,7 @@ class LT_Translation_Store {
 	/** @var array<string,array> Preloaded global strings, per language. */
 	private static $strings = array();
 	private static $translations = array();
+	public static function reset_strings() { self::$strings = array(); self::$translations = array(); LT_Script_Texts::flush(); }
 
 	public static function table() { global $wpdb; return $wpdb->prefix . 'light_translations'; }
 
@@ -44,7 +45,7 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 		global $wpdb;
 		$table = self::table();
 		$count = (int) $wpdb->query( "UPDATE $table a JOIN (SELECT language_code, source_hash, MAX(translated_text) AS tt FROM $table WHERE object_type='string' AND object_id=0 AND status IN ('translated','reviewed') AND translated_text <> '' GROUP BY language_code, source_hash) b ON a.language_code=b.language_code AND a.source_hash=b.source_hash SET a.translated_text=b.tt, a.status='translated' WHERE a.object_type='string' AND a.object_id=0 AND (a.translated_text='' OR a.status='empty')" ); // phpcs:ignore WordPress.DB
-		if ( $count ) foreach ( LT_Language_Router::instance()->languages() as $language ) { delete_transient( 'lt_strings_' . $language ); delete_transient( 'lt_wcjs_' . $language ); }
+		if ( $count ) { self::$strings = array(); self::$translations = array(); LT_Script_Texts::flush(); }
 		return $count;
 	}
 
@@ -59,7 +60,7 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 	private static $global_primed = array();
 	private static $global_rows = array();
 	/** @var array Performance counters shown in debug mode. */
-	public static $stats = array( 'queries' => 0, 'primed' => 0, 'strings' => 0, 'strings_cache' => '' );
+	public static $stats = array( 'queries' => 0, 'primed' => 0, 'strings' => 0 );
 
 	/**
 	 * Loads in ONE query the translations of many items (e.g. the products of a shop page), so the
@@ -124,27 +125,9 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 	 * once per text (a changed original must not show an old translation).
 	 */
 	public static function string_lookup( $language, $field, $source ) {
-		static $checked = array();
 		$map = self::strings( $language );
 		if ( ! isset( $map[ $field ] ) ) return null;
-		$key = $language . $field . self::hash( $source );
-		if ( ! isset( $checked[ $key ] ) ) $checked[ $key ] = self::source_matches( $map[ $field ], $source );
-		return $checked[ $key ] ? (string) $map[ $field ]->translated_text : null;
-	}
-
-	/** Short hashes of every translated content of a language (cached): lets the site skip queries for untranslated content. */
-	public static function content_hashes( $language ) {
-		static $hashes = array();
-		if ( ! isset( $hashes[ $language ] ) ) {
-			$cached = get_transient( 'lt_content_hashes_' . $language );
-			if ( ! is_array( $cached ) ) {
-				global $wpdb;
-				$cached = array_fill_keys( (array) $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT LEFT(source_hash,16) FROM ' . self::table() . " WHERE language_code=%s AND field_key='content' AND status IN ('translated','reviewed','partial') AND translated_text <> ''", $language ) ), true ); // phpcs:ignore WordPress.DB
-				set_transient( 'lt_content_hashes_' . $language, $cached, DAY_IN_SECONDS );
-			}
-			$hashes[ $language ] = $cached;
-		}
-		return $hashes[ $language ];
+		return hash_equals( substr( $map[ $field ], 1, 64 ), self::hash( $source ) ) ? substr( $map[ $field ], 65 ) : null;
 	}
 
 	/** Returns the row only when it holds a usable (non-empty, published) translation, whatever its source hash. */
@@ -154,29 +137,29 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 		return $row;
 	}
 
-	/** Loads every global string translation for a language in one query (gettext is called hundreds of times per page). */
-	/** Translated interface texts of a language, cached (no database query on most page views). */
+	/** Load interface texts once in this PHP request; nothing is persisted or compressed. */
 	private static function strings( $language ) {
 		if ( ! isset( self::$strings[ $language ] ) ) {
-			$cached = get_transient( 'lt_strings_' . $language );
-			if ( is_array( $cached ) ) {
-				self::$stats['strings_cache'] = 'hit';
-			} else {
-				global $wpdb;
-				$cached = array();
-				$rows   = $wpdb->get_results( $wpdb->prepare( 'SELECT field_key, source_text, translated_text, source_hash, status FROM ' . self::table() . " WHERE language_code=%s AND object_type='string' AND object_id=0 AND status IN ('translated','reviewed') AND translated_text <> ''", $language ) );
-				$by_text = array();
-				foreach ( (array) $rows as $row ) {
-					$cached[ $row->field_key ] = (object) array( 'translated_text' => $row->translated_text, 'source_hash' => $row->source_hash, 'status' => $row->status );
-					if ( strlen( (string) $row->source_text ) < 500 ) $by_text[ md5( trim( (string) $row->source_text ) ) ] = $row->translated_text; // same wording anywhere = same translation
+			global $wpdb;
+			$map = array( '__manual' => false );
+			// The original is only needed for the lookup by visible wording (short texts): long originals (HTML widgets,
+			// e-mails…) are not read from the database at all.
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT field_key, IF(LENGTH(source_text) < 500, source_text, NULL) AS source_text, translated_text, source_hash, status FROM ' . self::table() . " WHERE language_code=%s AND object_type='string' AND object_id=0 AND status IN ('translated','reviewed') AND translated_text <> ''", $language ) );
+			$by_text = array(); $manual_by_text = array();
+			foreach ( (array) $rows as $row ) {
+				$map[ $row->field_key ] = ( 'reviewed' === $row->status ? 'R' : 'T' ) . $row->source_hash . $row->translated_text;
+				if ( 0 === strpos( $row->field_key, 'text_' ) ) $map['__manual'] = true;
+				if ( null !== $row->source_text ) {
+					$text_key = md5( trim( (string) $row->source_text ) );
+					$by_text[ $text_key ] = $row->translated_text;
+					if ( 0 === strpos( $row->field_key, 'text_' ) ) $manual_by_text[ $text_key ] = $row->translated_text;
 				}
-				$cached['__by_text'] = $by_text;
-				set_transient( 'lt_strings_' . $language, $cached, 12 * HOUR_IN_SECONDS );
-				self::$stats['queries']++;
-				self::$stats['strings_cache'] = 'miss';
 			}
-			self::$strings[ $language ] = $cached;
-			self::$stats['strings'] = count( $cached );
+			$map['__by_text'] = $by_text;
+			$map['__manual_by_text'] = $manual_by_text;
+			self::$strings[ $language ] = $map;
+			self::$stats['queries']++;
+			self::$stats['strings'] = max( 0, count( $map ) - 3 );
 		}
 		return self::$strings[ $language ];
 	}
@@ -184,13 +167,15 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 	/** Translated interface text by key, without comparing the original (used for JavaScript texts). */
 	public static function string_value( $language, $field ) {
 		$map = self::strings( $language );
-		return isset( $map[ $field ] ) ? (string) $map[ $field ]->translated_text : null;
+		return isset( $map[ $field ] ) ? substr( $map[ $field ], 65 ) : null;
 	}
 
 	/** Translated interface text as a row (translated_text, source_hash, status) from the cached map, or null. */
 	public static function string_row( $language, $field ) {
 		$map = self::strings( $language );
-		return isset( $map[ $field ] ) && is_object( $map[ $field ] ) ? $map[ $field ] : null;
+		if ( ! isset( $map[ $field ] ) ) return null;
+		$value = $map[ $field ];
+		return (object) array( 'translated_text' => substr( $value, 65 ), 'source_hash' => substr( $value, 1, 64 ), 'status' => 'R' === $value[0] ? 'reviewed' : 'translated' );
 	}
 
 	/** Translation of a visible wording, whatever plugin / context it comes from (null when none). */
@@ -200,11 +185,15 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 		return isset( $map['__by_text'][ $key ] ) ? (string) $map['__by_text'][ $key ] : null;
 	}
 
+	public static function manual_by_text( $language, $text ) {
+		$map = self::strings( $language );
+		return $map['__manual_by_text'][ md5( trim( (string) $text ) ) ] ?? null;
+	}
+
 	/** Only texts added by hand ("text_…") need the second lookup by visible wording. */
 	public static function has_manual_texts( $language ) {
-		static $has = array();
-		if ( ! isset( $has[ $language ] ) ) { $has[ $language ] = false; foreach ( array_keys( self::strings( $language ) ) as $key ) if ( 0 === strpos( $key, 'text_' ) ) { $has[ $language ] = true; break; } }
-		return $has[ $language ];
+		$map = self::strings( $language );
+		return ! empty( $map['__manual'] );
 	}
 
 	public static function translate( $language, $type, $id, $field, $source ) {
@@ -213,8 +202,8 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 		$key = "$language:$type:$id:$field:" . md5( (string) $source );
 		if ( array_key_exists( $key, $cache ) ) return $cache[ $key ];
 		if ( 'string' === $type && 0 === (int) $id ) {
-			$map = self::strings( $language );
-			$row = $map[ $field ] ?? null;
+			$translated = self::string_lookup( $language, $field, $source );
+			return $cache[ $key ] = null !== $translated ? $translated : $source;
 		} else {
 			$row = self::get( $language, $type, $id, $field );
 		}
@@ -228,6 +217,7 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 		$translated = (string) ( $data['translated_text'] ?? '' );
 		// Administrators keep their markup (scripts, iframes, SVG…) exactly like in the original editor.
 		if ( ! current_user_can( 'unfiltered_html' ) ) $translated = wp_kses_post( $translated );
+		if ( 'email' === ( $data['object_type'] ?? '' ) && class_exists( 'LT_Email_Translations' ) && ! LT_Email_Translations::valid_translation( $source, $translated ) ) return false;
 		$status = $data['status'] ?? 'translated';
 		if ( ! in_array( $status, array( 'empty', 'translated', 'reviewed', 'partial' ), true ) ) $status = 'translated';
 		$row = array(
@@ -241,17 +231,16 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 			'status'          => $status,
 			'updated_at'      => current_time( 'mysql' ),
 		);
-		$old = $wpdb->get_row( $wpdb->prepare( 'SELECT language_code, object_type, object_id, field_key, source_hash, translated_text, status FROM ' . self::table() . ' WHERE language_code=%s AND object_type=%s AND object_id=%d AND field_key=%s', $row['language_code'], $row['object_type'], $row['object_id'], $row['field_key'] ) );
+		$old = $wpdb->get_row( $wpdb->prepare( 'SELECT id, language_code, object_type, object_id, field_key, source_hash, translated_text, status FROM ' . self::table() . ' WHERE language_code=%s AND object_type=%s AND object_id=%d AND field_key=%s', $row['language_code'], $row['object_type'], $row['object_id'], $row['field_key'] ) );
 		self::$translations = array();
 		unset( self::$global_primed[ $row['language_code'] ][ $row['object_type'] ], self::$global_rows[ $row['language_code'] ][ $row['object_type'] ] );
 		unset( self::$strings[ $row['language_code'] ], self::$primed[ $row['language_code'] ][ $row['object_type'] ][ $row['object_id'] ] );
 		unset( self::$partial[ $row['language_code'] ][ $row['object_type'] ][ $row['object_id'] ] );
-		if ( in_array( $row['object_type'], array( 'string', 'email' ), true ) ) { delete_transient( 'lt_strings_' . $row['language_code'] ); delete_transient( 'lt_wcjs_' . $row['language_code'] ); }
-		if ( 'content' === $row['field_key'] ) delete_transient( 'lt_content_hashes_' . $row['language_code'] );
-		$result = $wpdb->replace( self::table(), $row );
+		if ( in_array( $row['object_type'], array( 'string', 'email' ), true ) ) LT_Script_Texts::flush();
+		$result = $old ? $wpdb->update( self::table(), $row, array( 'id' => (int) $old->id ) ) : $wpdb->insert( self::table(), $row );
 		if ( false !== $result ) {
+			if ( ! in_array( $row['object_type'], array( 'string', 'email' ), true ) && class_exists( 'LT_Multilingual_Search' ) ) LT_Multilingual_Search::invalidate();
 			if ( class_exists( 'LT_Content_Catalog' ) ) {
-				LT_Content_Catalog::translation_changed( $old, $row );
 				LT_Content_Catalog::changed_object( $row['object_type'], $row['object_id'] );
 			}
 			do_action( 'lt_translation_saved', $row );
@@ -262,7 +251,7 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 	/** @param string $where Must be built with $wpdb->prepare() by the caller. */
 	public static function rows( $where = '' ) { global $wpdb; return $wpdb->get_results( 'SELECT * FROM ' . self::table() . ' ' . $where . ' ORDER BY object_id,language_code,field_key' ); }
 
-	public static function collect_empty( $language, $field, $source ) {
+	public static function collect_empty( $language, $field, $source, $legacy = null ) {
 		global $wpdb;
 		static $seen = array();
 		$language = sanitize_key( $language );
@@ -270,10 +259,12 @@ KEY slug_lookup (language_code,field_key(40),translated_text(100))
 		$key      = $language . ':' . $field;
 		if ( isset( $seen[ $key ] ) ) return;
 		$seen[ $key ] = true;
-		// The same text is already translated elsewhere (other plugin, context…): reuse its translation at once.
-		$known = $wpdb->get_var( $wpdb->prepare( 'SELECT translated_text FROM ' . self::table() . " WHERE language_code=%s AND object_type='string' AND object_id=0 AND source_hash=%s AND status IN ('translated','reviewed') AND translated_text <> '' LIMIT 1", $language, self::hash( $source ) ) );
+		// Scoped gettext may inherit only its own legacy key, never another plugin's wording.
+		$known = '' === $legacy ? null : ( null === $legacy
+			? $wpdb->get_var( $wpdb->prepare( 'SELECT translated_text FROM ' . self::table() . " WHERE language_code=%s AND object_type='string' AND object_id=0 AND source_hash=%s AND status IN ('translated','reviewed') AND translated_text <> '' LIMIT 1", $language, self::hash( $source ) ) )
+			: $wpdb->get_var( $wpdb->prepare( 'SELECT translated_text FROM ' . self::table() . " WHERE language_code=%s AND object_type='string' AND object_id=0 AND field_key=%s AND source_hash=%s AND status IN ('translated','reviewed') AND translated_text <> '' LIMIT 1", $language, $legacy, self::hash( $source ) ) ) );
 		$wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO ' . self::table() . ' (language_code,object_type,object_id,field_key,source_text,translated_text,source_hash,status,updated_at) VALUES (%s,%s,%d,%s,%s,%s,%s,%s,%s)', $language, 'string', 0, $field, (string) $source, null !== $known ? (string) $known : '', self::hash( $source ), null !== $known ? 'translated' : 'empty', current_time( 'mysql' ) ) );
-		if ( null !== $known && $wpdb->rows_affected ) { delete_transient( 'lt_strings_' . $language ); delete_transient( 'lt_wcjs_' . $language ); }
+		if ( null !== $known && $wpdb->rows_affected ) { unset( self::$strings[ $language ] ); LT_Script_Texts::flush(); }
 	}
 
 	/** Batch registration is additive: existing translations, originals and statuses are never overwritten. */

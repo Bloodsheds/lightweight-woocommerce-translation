@@ -11,15 +11,17 @@ $options = array(
 	'lt_language_label_mode', 'lt_language_labels', 'lt_selector_show_flag', 'lt_selector_show_name',
 	'lt_selector_include_default', 'lt_auto_redirect', 'lt_sticky_language', 'lt_seo_tags',
 	'lt_debug_mode', 'lt_collect_strings', 'lt_admin_translation_layout', 'lt_list_column', 'lt_verify_until',
-	'lt_string_index', 'lt_js_strings', 'lt_string_domains', 'lt_admin_text_options', 'lt_page_texts',
+	'lt_email_catalog_ids', 'lt_string_index', 'lt_js_strings', 'lt_string_domains', 'lt_admin_text_options', 'lt_page_texts',
 	'lt_site_scan', 'lt_scan_ignored', 'lt_string_seen', 'lt_woocommerce_catalog', 'lt_wc_blocks_seen',
 	'lt_wc_blocks_texts', 'lt_wc_blocks_pages', 'lt_wc_blocks_scanned', 'lt_ai_context', 'lt_version',
-	'lt_catalog_revision', 'lt_catalog_revisions', 'lt_status_summary_keys', 'lt_overview_progress_keys', 'lt_flush_rewrite_rules',
+	'lt_catalog_revision', 'lt_catalog_revisions', 'lt_status_summary_keys', 'lt_overview_progress_keys', 'lt_flush_rewrite_rules', 'lt_cache_purge_due',
 );
+wp_clear_scheduled_hook( 'lt_delayed_cache_purge' );
 foreach ( $options as $option ) delete_option( $option );
 
 delete_metadata( 'user', 0, 'lt_language', '', true );
 delete_metadata( 'user', 0, $wpdb->get_blog_prefix() . 'lt_strings_per_page', '', true );
+delete_metadata( 'user', 0, 'lt_collect_texts', '', true );
 
 $switchers = get_posts( array(
 	'post_type' => 'nav_menu_item', 'post_status' => array( 'publish', 'draft', 'pending', 'private' ),

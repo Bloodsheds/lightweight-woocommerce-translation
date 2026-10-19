@@ -70,7 +70,7 @@ class LT_Status_Panel {
 		$fields = $item['fields'];
 		uksort( $fields, function( $a, $b ) use ( $order ) { return ( $order[ $a ] ?? 5 ) - ( $order[ $b ] ?? 5 ); } );
 		$out = array();
-		foreach ( $fields as $field => $source ) $out[] = array( 'type' => $item['type'], 'id' => (int) $item['id'], 'field' => $field, 'source' => (string) $source, 'label' => self::label( $field ) );
+		foreach ( $fields as $field => $source ) $out[] = array( 'type' => $item['type'], 'id' => (int) $item['id'], 'field' => $field, 'source' => (string) $source, 'label' => $item['labels'][ $field ] ?? ( 'string' === $item['type'] ? __( 'Text', 'lightweight-translation' ) : self::label( $field ) ) );
 		return $out;
 	}
 
@@ -87,6 +87,7 @@ class LT_Status_Panel {
 	 * work on them); the others are shared with other pages (blocks, interface texts).
 	 */
 	public static function model( $group, $id ) {
+		if ( 'geo' === $group ) return LT_WooCommerce_Text_Groups::geography_model( $id );
 		$item = LT_Content_Catalog::item( $group, $id );
 		if ( ! $item ) return null;
 		$sections = array();
@@ -126,11 +127,12 @@ class LT_Status_Panel {
 	 */
 	public static function field_state( $entry, $language ) {
 		$row    = 'string' === $entry['type'] ? LT_Translation_Store::string_row( $language, $entry['field'] ) : LT_Translation_Store::get( $language, $entry['type'], $entry['id'], $entry['field'] );
+		if ( 'string' === $entry['type'] && ! $row ) { $known = LT_Translation_Store::by_text( $language, $entry['source'] ); if ( null !== $known ) $row = (object) array( 'translated_text' => $known, 'status' => 'translated', 'source_hash' => LT_Translation_Store::hash( $entry['source'] ), 'source_text' => $entry['source'] ); }
 		$live   = $row && in_array( $row->status, LT_Translation_Store::LIVE_STATUSES, true ) && '' !== trim( (string) $row->translated_text );
 		$same   = $live && LT_Translation_Store::source_matches( $row, $entry['source'] );
 		$source = $entry['source'];
 		$out    = array( 'state' => $live ? ( $same && 'partial' !== $row->status ? 'ok' : 'changed' ) : 'todo', 'value' => $live ? (string) $row->translated_text : '', 'old' => ( $live && ! $same ) ? (string) ( $row->source_text ?? '' ) : '', 'mode' => ( 'slug' === $entry['field'] || ( mb_strlen( $source ) < 90 && false === strpos( $source, "\n" ) ) ) ? 'input' : 'text', 'parts' => array() );
-		if ( 'string' === $entry['type'] || ! LT_Segments::is_long( $source ) ) return $out;
+		if ( in_array( $entry['type'], array( 'string', 'email' ), true ) || ! LT_Segments::is_long( $source ) ) return $out;
 
 		// Long content: paragraph by paragraph. Paragraphs already translated are recovered even after the
 		// original was edited, so only new or changed paragraphs are left to do.
@@ -207,10 +209,11 @@ class LT_Status_Panel {
 		$h .= '<label class="lt-only-left"><input type="checkbox" class="lt-filter-left"> ' . esc_html__( 'Show only what is left', 'lightweight-translation' ) . '</label></div>';
 
 		if ( ! $model['read'] && $view ) {
-			$h .= '<div class="lt-panel-notice"><p>' . esc_html__( 'The blocks and texts shown inside this page are not known yet. Read the page once to list them here.', 'lightweight-translation' ) . '</p><button type="button" class="button lt-read-page" data-url="' . esc_url( get_permalink( $id ) ) . '">' . esc_html__( 'Read this page', 'lightweight-translation' ) . '</button></div>';
+			$h .= '<div class="lt-panel-notice"><p>' . esc_html__( 'The blocks and texts shown inside this page are not known yet. Read the page once to list them here.', 'lightweight-translation' ) . '</p><button type="button" class="button lt-read-page" data-url="' . esc_url( add_query_arg( 'lt_collect', 1, get_permalink( $id ) ) ) . '">' . esc_html__( 'Read this page', 'lightweight-translation' ) . '</button></div>';
 		}
 
 		$h .= '<div class="lt-panel-body">';
+		if ( 'email' === $group ) $h .= '<p class="description">' . esc_html__( 'Keep the placeholders like {order_number}, {site_title}, {order_date} as they are. Empty = original text.', 'lightweight-translation' ) . '</p>';
 		foreach ( $model['sections'] as $section ) {
 			if ( ! $section['entries'] ) continue;
 			$h .= '<section class="lt-sec"><h3>' . esc_html( $section['title'] ) . '</h3>' . ( ! empty( $section['note'] ) ? '<p class="lt-sec-note">' . esc_html( $section['note'] ) . '</p>' : '' );
@@ -260,7 +263,7 @@ class LT_Status_Panel {
 		$group    = sanitize_text_field( wp_unslash( $_REQUEST['group'] ?? '' ) );
 		$id       = absint( $_REQUEST['id'] ?? 0 );
 		$language = sanitize_key( wp_unslash( $_REQUEST['lang'] ?? '' ) );
-		if ( ! isset( LT_Content_Catalog::groups()[ $group ] ) || ! in_array( $language, self::languages(), true ) ) wp_send_json_error( array( 'message' => __( 'Unknown item.', 'lightweight-translation' ) ), 400 );
+		if ( ( 'geo' !== $group && ! isset( LT_Content_Catalog::groups()[ $group ] ) ) || ( 'geo' === $group && ! LT_WooCommerce_Text_Groups::geography_code( $id ) ) || ! in_array( $language, self::languages(), true ) ) wp_send_json_error( array( 'message' => __( 'Unknown item.', 'lightweight-translation' ) ), 400 );
 		return array( $group, $id, $language );
 	}
 
@@ -274,6 +277,7 @@ class LT_Status_Panel {
 		$model = self::model( $group, $id );
 		if ( ! $model ) wp_send_json_error( array( 'message' => __( 'This item no longer exists.', 'lightweight-translation' ) ), 404 );
 		$result = self::save( $model, $language, wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- each value is checked against the model
+		if ( $result['invalid'] ) wp_send_json_error( array( 'message' => __( 'Some translations could not be saved. Keep every e-mail placeholder (for example {order_number}) exactly as in the original, then try again.', 'lightweight-translation' ) ), 400 );
 		$message = $result['stale'] ? sprintf( __( 'Saved. %d text(s) were edited in the original meanwhile: check them again.', 'lightweight-translation' ), $result['stale'] ) : __( 'Saved.', 'lightweight-translation' );
 		wp_send_json_success( array(
 			'saved'   => $result['saved'],
@@ -288,9 +292,10 @@ class LT_Status_Panel {
 	 * browser); a field whose original changed while the panel was open is skipped.
 	 * @return array [ saved, stale ]
 	 */
-	public static function save( $model, $language, $post ) {
+	public static function save( $model, $language, $post, $share_strings = true ) {
 		$saved = 0;
 		$stale = 0;
+		$invalid = 0;
 		foreach ( $model['sections'] as $section ) foreach ( $section['entries'] as $entry ) {
 			$type  = sanitize_key( $entry['type'] );
 			$id    = (int) $entry['id'];
@@ -311,10 +316,20 @@ class LT_Status_Panel {
 				$translated = 'slug' === $field ? sanitize_title( $value ) : $value;
 				$status     = '' === trim( $translated ) ? 'empty' : 'translated';
 			}
-			LT_Translation_Store::save( array( 'language_code' => $language, 'object_type' => $type, 'object_id' => $id, 'field_key' => $field, 'source_text' => $entry['source'], 'translated_text' => 'empty' === $status ? '' : $translated, 'status' => $status ) );
+			$result = LT_Translation_Store::save( array( 'language_code' => $language, 'object_type' => $type, 'object_id' => $id, 'field_key' => $field, 'source_text' => $entry['source'], 'translated_text' => 'empty' === $status ? '' : $translated, 'status' => $status ) );
+			if ( false === $result ) { $invalid++; continue; }
+			if ( $share_strings && 'string' === $type ) {
+				// Preserve the former string editor's shared translation for identical wording.
+				foreach ( self::aliases( $field, $entry['source'] ) as $alias ) LT_Translation_Store::save( array( 'language_code' => $language, 'object_type' => 'string', 'object_id' => 0, 'field_key' => $alias, 'source_text' => $entry['source'], 'translated_text' => $translated, 'status' => $status ) );
+			}
 			$saved++;
 		}
-		return array( 'saved' => $saved, 'stale' => $stale );
+		return array( 'saved' => $saved, 'stale' => $stale, 'invalid' => $invalid );
+	}
+
+	private static function aliases( $field, $source ) {
+		global $wpdb;
+		return (array) $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT field_key FROM ' . LT_Translation_Store::table() . " WHERE object_type='string' AND object_id=0 AND field_key<>%s AND BINARY TRIM(source_text)=BINARY TRIM(%s)", $field, $source ) );
 	}
 
 	/* ---------- Bulk actions ---------- */
@@ -338,8 +353,9 @@ class LT_Status_Panel {
 			$refs = array();
 			foreach ( $items as $ref ) {
 				$refs[] = $ref[0] . '|' . $ref[1];
-				$model  = self::model( $ref[0], $ref[1] );
-				if ( $model ) foreach ( $model['sections'] as $section ) foreach ( $section['entries'] as $entry ) if ( 'string' !== $entry['type'] && ( (int) $entry['id'] !== $ref[1] || $entry['type'] !== $model['item']['type'] ) ) $refs[] = ( 'term' === $entry['type'] ? $ref[0] : 'post:' . $entry['type'] ) . '|' . $entry['id'];
+				if ( 'post:product' === $ref[0] ) {
+					foreach ( get_posts( array( 'post_type' => 'product_variation', 'post_status' => LT_Content_Catalog::POST_STATUSES, 'numberposts' => -1, 'post_parent' => $ref[1], 'fields' => 'ids' ) ) as $vid ) $refs[] = 'post:product_variation|' . $vid;
+				}
 			}
 			$refs = array_values( array_unique( $refs ) );
 			$_REQUEST['ids']    = $refs;
@@ -355,10 +371,13 @@ class LT_Status_Panel {
 			if ( ! $model ) continue;
 			foreach ( $model['sections'] as $section ) {
 				if ( empty( $section['own'] ) ) continue;
-				foreach ( $section['entries'] as $entry ) foreach ( $languages as $l ) {
+				$entries = $section['entries'];
+				foreach ( $section['entries'] as $entry ) if ( 'string' === $entry['type'] ) foreach ( self::aliases( $entry['field'], $entry['source'] ) as $alias ) $entries[] = array_merge( $entry, array( 'field' => $alias ) );
+				foreach ( $entries as $entry ) foreach ( $languages as $l ) {
 					$row  = LT_Translation_Store::get( $l, $entry['type'], $entry['id'], $entry['field'] );
 					$live = $row && in_array( $row->status, LT_Translation_Store::LIVE_STATUSES, true ) && '' !== trim( (string) $row->translated_text );
 					$data = array( 'language_code' => $l, 'object_type' => $entry['type'], 'object_id' => $entry['id'], 'field_key' => $entry['field'], 'source_text' => $entry['source'] );
+					if ( 'delete' === $action && in_array( $entry['type'], array( 'string', 'email' ), true ) && $row ) { LT_Translation_Store::save( $data + array( 'translated_text' => '', 'status' => 'empty' ) ); $done++; }
 					if ( 'copy' === $action && ! $live && 'slug' !== $entry['field'] ) { LT_Translation_Store::save( $data + array( 'translated_text' => $entry['source'], 'status' => 'translated' ) ); $done++; }
 					if ( 'checked' === $action && $live && 'partial' !== $row->status && ! LT_Translation_Store::source_matches( $row, $entry['source'] ) ) {
 						// The paragraphs still known are kept, the others take the new original.
@@ -372,7 +391,7 @@ class LT_Status_Panel {
 					}
 				}
 			}
-			if ( 'delete' === $action ) {
+			if ( 'delete' === $action && ! in_array( $model['item']['type'], array( 'string', 'email' ), true ) ) {
 				foreach ( $model['sections'] as $section ) if ( ! empty( $section['own'] ) && $section['entries'] ) $done += LT_Translation_Reset::reset( $section['entries'][0]['type'], $section['entries'][0]['id'], 1 === count( $languages ) ? $languages[0] : '' );
 			}
 		}

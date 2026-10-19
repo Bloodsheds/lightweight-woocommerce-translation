@@ -23,9 +23,18 @@ spl_autoload_register( function( $class ) {
 		'LT_WooCommerce_Text_Groups' => 'woocommerce/class-woocommerce-text-groups.php',
 		'LT_WooCommerce_Catalog' => 'woocommerce/class-woocommerce-catalog.php',
 		'LT_Email_Translations' => 'woocommerce/class-email-translations.php',
+		'LT_Order_Translations' => 'woocommerce/class-order-translations.php',
+		'LT_Account_Translations' => 'woocommerce/class-account-translations.php',
+		'LT_Email_Catalog' => 'woocommerce/class-email-catalog.php',
 		'LT_Email_Page' => 'woocommerce/class-email-page.php',
 		'LT_WoodMart_Module' => 'woodmart/class-woodmart-module.php',
+		'LT_WoodMart_Catalog' => 'woodmart/class-woodmart-catalog.php',
 		'LT_WoodMart_Compat' => 'woodmart/class-woodmart-compat.php',
+		'LT_WoodMart_Header' => 'woodmart/class-woodmart-header.php',
+		'LT_WoodMart_Search' => 'woodmart/class-woodmart-search.php',
+		'LT_CF_Seven_Module' => 'contact-form-7/class-cf-seven-module.php',
+		'LT_Checkout_Field_Editor_Module' => 'checkout-field-editor/class-checkout-field-editor-module.php',
+		'LT_PDF_Invoices_Module' => 'pdf-invoices/class-pdf-invoices-module.php',
 		'LT_Product_Bundles_Module' => 'product-bundles/class-product-bundles-module.php',
 	);
 	if ( isset( $modules[ $class ] ) ) {
@@ -43,37 +52,36 @@ spl_autoload_register( function( $class ) {
 function lt_capability() {
 	return (string) apply_filters( 'lt_capability', class_exists( 'WooCommerce', false ) ? 'manage_woocommerce' : 'manage_options' );
 }
-/**
- * Original language of a new install: the language WordPress is set to (changeable in Settings).
- * Sites that already have translations but never saved this setting keep the former default (pt + fr, en).
- */
-function lt_set_default_languages() {
-	if ( false !== get_option( 'lt_default_language', false ) ) return;
-	global $wpdb;
-	$table = LT_Translation_Store::table();
-	$used  = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table && (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table" ); // phpcs:ignore WordPress.DB
-	add_option( 'lt_default_language', $used ? 'pt' : LT_Language_Router::site_language() );
-	if ( $used && false === get_option( 'lt_secondary_languages', false ) ) add_option( 'lt_secondary_languages', 'fr,en' );
-}
 function lt_activate() {
 	LT_Translation_Store::install();
-	lt_set_default_languages();
 	update_option( 'lt_flush_rewrite_rules', 1 );
 }
-function lt_deactivate() { flush_rewrite_rules(); }
+function lt_deactivate() { wp_clear_scheduled_hook( 'lt_delayed_cache_purge' ); flush_rewrite_rules(); }
 register_activation_hook( __FILE__, 'lt_activate' );
 register_deactivation_hook( __FILE__, 'lt_deactivate' );
 
+// Authenticate signed site-check frames before any integration can resolve the logged-in user.
+add_filter( 'determine_current_user', array( 'LT_Site_Scan', 'scan_user' ), PHP_INT_MAX );
+// Visitor views of the site check are never stored by page caches (LiteSpeed…): the next check must run PHP to note texts.
+add_action( 'send_headers', function() {
+	if ( ! LT_Site_Scan::visitor_frame() ) return;
+	if ( ! defined( 'DONOTCACHEPAGE' ) ) define( 'DONOTCACHEPAGE', true );
+	nocache_headers();
+	do_action( 'litespeed_control_set_nocache', 'lightweight-translation site check' );
+} );
+
 add_action( 'plugins_loaded', function() {
-	if ( get_option( 'lt_version' ) !== LT_VERSION ) {
+	// A plugin update must not run dbDelta and rewrite flushing on a customer's first page view.
+	// Existing installations keep using their table until an administrator opens wp-admin.
+	if ( is_admin() && ! wp_doing_ajax() && get_option( 'lt_version' ) !== LT_VERSION ) {
 		LT_Translation_Store::install();
-		lt_set_default_languages();
 		// Existing menu selectors used the plugin's boxed dropdown by default; use the theme-native menu now.
 		global $wpdb;
 		$wpdb->update( $wpdb->postmeta, array( 'meta_value' => 'theme' ), array( 'meta_key' => '_lt_switcher_style', 'meta_value' => 'boxed' ), array( '%s' ), array( '%s', '%s' ) );
-		// Existing rows and keys are retained; no translation is reset on upgrade.
+		// Previous releases stored performance data in transients. The cache plugin now owns caching.
+		LT_Data_Lifecycle::purge_legacy_caches();
+		// Existing translations are retained; no translation is reset on upgrade.
 		update_option( 'lt_version', LT_VERSION );
-		update_option( 'lt_flush_rewrite_rules', 1 );
 	}
 	LT_Language_Router::instance();
 	// Frontend translation filters can run thousands of times per request (especially gettext).
@@ -85,7 +93,7 @@ add_action( 'plugins_loaded', function() {
 	LT_Script_Texts::instance();
 	LT_Block_Editor::instance(); // Registers REST routes as well as editor hooks.
 	LT_Translation_Reset::instance();
-	if ( ! is_admin() ) LT_Page_Texts::instance(); // Public pages only; admin screens are never page-scan targets.
+	if ( ! is_admin() || wp_doing_ajax() ) LT_Page_Texts::instance(); // Public responses only; admin screens are never page-scan targets.
 	LT_Modules::boot();
 	if ( is_admin() ) {
 		foreach ( array( 'LT_Admin_Navigation', 'LT_Detected_Text', 'LT_Settings_Page', 'LT_Admin_Product_Metabox', 'LT_Find_Text', 'LT_Site_Scan', 'LT_Term_Editor', 'LT_String_Translation', 'LT_Code_Scanner', 'LT_Help_Page', 'LT_CSV_Export', 'LT_Data_Lifecycle', 'LT_Translation_Status', 'LT_Status_Panel', 'LT_Taxonomy_Translation', 'LT_CSV_Import' ) as $class ) $class::instance();

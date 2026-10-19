@@ -65,8 +65,8 @@ class LT_Admin_Texts {
 
 	/** Who declared each translatable option: option name => group of LT_Sources ("theme", "woocommerce", "plugin:{dir}"). */
 	public static function origins() {
-		$cached = get_transient( 'lt_admin_text_origins' );
-		if ( is_array( $cached ) ) return $cached;
+		static $origins = null;
+		if ( null !== $origins ) return $origins;
 		$files = array();
 		$theme = wp_get_theme();
 		foreach ( array_filter( array( $theme, $theme->parent() ) ) as $item ) $files[ $item->get_stylesheet_directory() . '/wpml-config.xml' ] = 'theme';
@@ -78,7 +78,6 @@ class LT_Admin_Texts {
 			if ( ! $xml || ! isset( $xml->{'admin-texts'} ) ) continue;
 			foreach ( array_keys( self::parse_keys( $xml->{'admin-texts'} ) ) as $option ) if ( ! isset( $origins[ $option ] ) ) $origins[ $option ] = $group;
 		}
-		set_transient( 'lt_admin_text_origins', $origins, DAY_IN_SECONDS );
 		return $origins;
 	}
 
@@ -102,7 +101,7 @@ class LT_Admin_Texts {
 
 	/** Reads every declared option and adds its texts to Interface texts. @return int number of texts */
 	public static function collect() {
-		$tree = array_replace_recursive( self::builtin(), self::from_wpml_config() );
+		$tree = apply_filters( 'lt_admin_text_tree', array_replace_recursive( self::builtin(), self::from_wpml_config() ) );
 		update_option( self::TREE, $tree, true );
 		$router = LT_Language_Router::instance();
 		$langs  = array_values( array_diff( $router->languages(), array( $router->default_language() ) ) );
@@ -149,7 +148,11 @@ class LT_Admin_Texts {
 
 	private static function replace( $value, $tree, $path, $option, $language ) {
 		if ( ! is_array( $value ) ) {
-			return ( true === $tree && self::is_text( $value ) ) ? LT_Translation_Store::translate( $language, 'string', 0, 'string_' . md5( self::key( $option, $path ) ), $value ) : $value;
+			if ( true !== $tree || ! self::is_text( $value ) ) return $value;
+			$out = LT_Translation_Store::translate( $language, 'string', 0, 'string_' . md5( self::key( $option, $path ) ), $value );
+			// A theme option preset ("12/copyrights") with the same wording as the main option: the main translation is used.
+			if ( $out === $value && preg_match( '#^\d+/(.+)$#', $path, $m ) ) $out = LT_Translation_Store::translate( $language, 'string', 0, 'string_' . md5( self::key( $option, $m[1] ) ), $value );
+			return $out;
 		}
 		foreach ( $value as $k => $v ) {
 			$sub = true === $tree ? true : ( $tree[ $k ] ?? ( $tree['*'] ?? null ) );

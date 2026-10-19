@@ -11,6 +11,14 @@
     });
   }
   document.addEventListener('click', function (event) {
+    // The language shown in a theme menu is the active one: it opens the list, it never reloads the page.
+    var active = event.target.closest('.lt-language-switcher-trigger--theme');
+    if (active) {
+      event.preventDefault();
+      var parent = active.closest('.lt-menu-switcher-item');
+      if (parent) parent.classList.toggle('wd-opened');
+      return;
+    }
     var button = event.target.closest('.lt-language-switcher-trigger:not(.lt-language-switcher-trigger--theme)');
     // Arrow added by the theme next to the item (phone menus): same as tapping the language.
     if (!button) {
@@ -75,10 +83,6 @@
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addBackLines); else addBackLines();
-  // Choosing a language in a switcher = the visitor's choice, remembered before leaving the page.
-  document.addEventListener('click', function (event) {
-    var link = event.target.closest('a[data-lt-lang]');
-    if (link && window.ltSetLang) window.ltSetLang(link.getAttribute('data-lt-lang'));
-  }, true);
+  // The visitor's choice (a[data-lt-lang] clicks) is remembered by the head script of every page (redirect_script).
   document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeAll(); });
 }());

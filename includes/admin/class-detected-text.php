@@ -131,6 +131,9 @@ class LT_Detected_Text {
 		// between that real content field and a generic translation-memory string.
 		$has_term = (bool) array_filter( $candidates, function( $candidate ) { return 'term' === $candidate['type']; } );
 		if ( $has_term ) $candidates = array_filter( $candidates, function( $candidate ) { return 'string' !== $candidate['type']; } );
+		// A wording of a Contact Form 7 form: that form is where it is translated (not a widget or page text around it).
+		$cf7 = array_filter( $candidates, function( $candidate ) { return 'string' === $candidate['type'] && 'plugin:contact-form-7' === ( self::$index[ $candidate['field'] ]['s'] ?? '' ); } );
+		if ( $cf7 ) $candidates = $cf7;
 		$origins = array_values( array_unique( array_map( array( __CLASS__, 'type_label' ), array_values( $candidates ) ) ) );
 		$uncertain = count( $candidates ) !== 1 || ! empty( reset( $candidates )['uncertain'] );
 		$origin = count( $origins ) === 1 ? ( $uncertain && false === strpos( $origins[0], 'origin not confirmed' ) ? sprintf( __( 'Possible content type: %s', 'lightweight-translation' ), $origins[0] ) : $origins[0] ) : ( $origins ? sprintf( __( 'Several possible content types: %s', 'lightweight-translation' ), implode( ', ', $origins ) ) : __( 'Content type not identified', 'lightweight-translation' ) );

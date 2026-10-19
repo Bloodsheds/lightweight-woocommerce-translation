@@ -9,17 +9,26 @@ defined( 'ABSPATH' ) || exit;
  * "🌐 Translate › Texts of this page" then opens Interface texts filtered on exactly those texts:
  * no need to know which plugin or option a text comes from.
  * Costs nothing for visitors: nothing is recorded unless the user can manage the shop.
+ * Recording makes each page heavier, so it is off until the administrator turns it on in the admin bar
+ * (per user). Pages opened by "Check the site" or "Read this page" are always recorded.
  */
 class LT_Page_Texts {
 	const MAX_TEXTS = 2500;
 	const MAX_PAGES = 8;
 	const MAP       = 'lt_page_texts'; // page type => [ url, time, keys => [ field => [ source, domain ] ] ]
 	const MAX_KEYS  = 1500;
+	const COLLECT   = 'lt_collect_texts'; // user meta: '1' = this administrator records the texts of the pages he visits
 
 	private static $instance;
 	private static $on     = null;
+	private static $render_started = false;
 	private static $paused = false;
 	private static $texts  = array();
+	private static $async = false;
+	private static $response = null;
+	private static $can     = null;    // this request may record (administrator, recording on), known after init
+	private static $recent  = array(); // texts translated before the page renders (form handlers), for notices
+	private static $notices = array(); // texts found in a WooCommerce notice added by a form handler
 
 	public static function instance() { return self::$instance ?: ( self::$instance = new self() ); }
 
@@ -28,17 +37,59 @@ class LT_Page_Texts {
 		add_action( 'wp_after_admin_bar_render', array( __CLASS__, 'resume' ) );
 		add_action( 'admin_bar_menu', array( $this, 'menu' ), 85 );
 		add_action( 'shutdown', array( __CLASS__, 'save' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'begin_render' ), PHP_INT_MIN );
 		add_action( 'template_redirect', array( __CLASS__, 'start_buffer' ), PHP_INT_MAX );
+		add_action( 'template_redirect', array( __CLASS__, 'toggle' ), 0 );
+		// Start only when the public AJAX/REST handler executes: plugin initialization and REST schemas
+		// must never count as customer-facing response text.
+		if ( wp_doing_ajax() && ! empty( $_REQUEST['action'] ) ) add_action( 'wp_ajax_' . sanitize_key( wp_unslash( $_REQUEST['action'] ) ), array( __CLASS__, 'begin_async' ), PHP_INT_MIN ); // phpcs:ignore WordPress.Security.NonceVerification
+		if ( ! empty( $_GET['wc-ajax'] ) ) add_action( 'wc_ajax_' . sanitize_key( wp_unslash( $_GET['wc-ajax'] ) ), array( __CLASS__, 'begin_async' ), PHP_INT_MIN ); // phpcs:ignore WordPress.Security.NonceVerification
+		add_filter( 'rest_pre_dispatch', array( __CLASS__, 'begin_rest' ), PHP_INT_MIN );
+		add_filter( 'rest_post_dispatch', array( __CLASS__, 'end_rest' ), PHP_INT_MAX );
+		// WooCommerce form handlers (cart update, coupon, login…) add a notice and redirect: the notice is shown
+		// on the next page without gettext. Its texts are noted when the notice is added.
+		foreach ( array( 'woocommerce_add_error', 'woocommerce_add_success', 'woocommerce_add_notice' ) as $hook ) add_filter( $hook, array( __CLASS__, 'notice' ), PHP_INT_MAX );
+	}
+
+	/** Recording turned on by this administrator, or asked for this page only (?lt_collect=1: "Read this page", unread pages). */
+	public static function enabled() {
+		if ( ! empty( $_GET['lt_collect'] ) ) return true; // phpcs:ignore WordPress.Security.NonceVerification
+		return self::user_enabled();
+	}
+	private static function user_enabled() { return '1' === (string) get_user_meta( get_current_user_id(), self::COLLECT, true ); }
+
+	/** Admin bar "Record the texts of the pages": on / off for the current user, then back to the same page. */
+	public static function toggle() {
+		$state = sanitize_key( $_GET['lt_collect_toggle'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification
+		if ( ! in_array( $state, array( 'on', 'off' ), true ) || ! is_user_logged_in() || ! current_user_can( lt_capability() ) ) return;
+		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ?? '' ) ), 'lt_collect_toggle' ) ) return;
+		update_user_meta( get_current_user_id(), self::COLLECT, 'on' === $state ? '1' : '0' );
+		wp_safe_redirect( remove_query_arg( array( 'lt_collect_toggle', '_wpnonce' ) ) );
+		exit;
 	}
 
 	/* ---------- What the visitor really sees ---------- */
 
 	private static $html  = null;
+	private static $buffer_level = 0;
 	private static $items = array();
 
 	/** The final HTML of the page is kept (administrators only) to keep only the texts it really shows. */
 	public static function start_buffer() {
-		if ( self::tracking() && ! is_feed() && ! wp_doing_ajax() ) ob_start( array( __CLASS__, 'keep_html' ) );
+		if ( self::tracking() && ! is_feed() && ! wp_doing_ajax() ) {
+			ob_start( array( __CLASS__, 'keep_html' ) );
+			self::$buffer_level = ob_get_level();
+		}
+	}
+	public static function begin_async() {
+		self::$render_started = true;
+		self::$async = true;
+		if ( self::tracking() ) { ob_start( array( __CLASS__, 'keep_html' ) ); self::$buffer_level = ob_get_level(); }
+	}
+	public static function begin_rest( $result ) { self::begin_async(); return $result; }
+	public static function end_rest( $response ) {
+		if ( self::tracking() && is_object( $response ) && method_exists( $response, 'get_data' ) ) self::$response = $response->get_data();
+		return $response;
 	}
 	public static function keep_html( $html ) { if ( is_string( $html ) && '' !== $html ) self::$html = ( self::$html ?? '' ) . $html; return $html; }
 
@@ -49,39 +100,42 @@ class LT_Page_Texts {
 
 	/** Text a visitor can read: page text, or a placeholder / title / button label. No scripts, styles, comments. */
 	private static function visible_text( $html ) {
-		$html = preg_replace( '#<(script|style|noscript|template)\b[^>]*>.*?</\1>|<!--.*?-->#is', ' ', $html );
-		preg_match_all( '#\b(?:placeholder|title|alt|aria-label|value|data-label|data-title)\s*=\s*"([^"]*)"#i', $html, $attributes );
-		$text = wp_strip_all_tags( $html ) . ' ' . implode( ' ', $attributes[1] );
-		return mb_strtolower( preg_replace( '/\s+/u', ' ', html_entity_decode( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) );
+		$texts = array();
+		$segments = array();
+		LT_Public_HTML::map( $html, function( $text ) use ( &$texts, &$segments ) {
+			$part = mb_strtolower( trim( preg_replace( '/\s+/u', ' ', $text ) ) );
+			if ( '' !== $part ) { $texts[ $part ] = true; $segments[] = $part; }
+			return $text;
+		} );
+		return array( 'joined' => implode( ' ', $segments ), 'parts' => $texts );
 	}
 
-	/** Is this original text found in what the visitor sees? (the longest part around %s placeholders is enough) */
+	/** Short labels must be complete visible fragments; longer formatted text may span inline markup. */
 	private static function is_shown( $source, $haystack ) {
 		$needle = preg_replace( '/\s+/u', ' ', html_entity_decode( wp_strip_all_tags( (string) $source ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
 		$parts  = preg_split( '/%(?:\d+\$)?[sdfu]|\{[a-z_]+\}/i', $needle );
 		usort( $parts, function( $a, $b ) { return strlen( $b ) - strlen( $a ); } );
 		$needle = mb_strtolower( trim( (string) $parts[0] ) );
 		if ( mb_strlen( $needle ) < 2 ) return false;
-		return false !== strpos( $haystack, $needle );
+		if ( 1 === count( $parts ) && mb_strlen( $needle ) < 25 ) return isset( $haystack['parts'][ $needle ] );
+		return 1 === preg_match( '/(?<![\p{L}\p{N}])' . preg_quote( $needle, '/' ) . '(?![\p{L}\p{N}])/u', $haystack['joined'] );
 	}
 
 	/* ---------- Recording ---------- */
 
+	/** Settings and post-type labels loaded during init are not evidence that a visitor saw a text. */
+	public static function begin_render() { self::$render_started = true; }
+
 	public static function tracking() {
 		if ( self::$paused ) return false;
+		// Do not memoize false before template_redirect: a later call during rendering must be able to record.
+		if ( ! self::$render_started ) return false;
 		if ( null === self::$on ) {
-			if ( ! did_action( 'init' ) ) return false; // user not known yet
 			self::$on = false; // no recursion if a check below translates a text
-			self::$on = ! wp_doing_cron() && ( ! is_admin() || self::is_front_request() ) && is_user_logged_in() && current_user_can( lt_capability() ) && ! self::scan_copy();
+			$public_ajax = self::$async && ( ! wp_get_raw_referer() || 0 !== strpos( (string) wp_get_raw_referer(), admin_url() ) );
+			self::$on = ! wp_doing_cron() && ( ! is_admin() || $public_ajax ) && ( LT_Site_Scan::visitor_frame() || ( is_user_logged_in() && current_user_can( lt_capability() ) ) ) && ! self::scan_copy() && ( self::scan_frame() || self::enabled() );
 		}
 		return self::$on;
-	}
-	/** AJAX / REST call made by a page of the site (add to cart, form, checkout errors…), not by the admin. */
-	private static function is_front_request() {
-		if ( ! wp_doing_ajax() && ! ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) return ! is_admin();
-		$action = (string) ( $_REQUEST['action'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification
-		if ( 0 === strpos( $action, 'lt_' ) || 'heartbeat' === $action ) return false;
-		return false === strpos( (string) wp_get_raw_referer(), '/wp-admin/' );
 	}
 
 	/** Translated copy of a page opened by "Check the site": its texts were already noted on the original page. */
@@ -89,29 +143,101 @@ class LT_Page_Texts {
 	/** Any page opened by "Check the site". */
 	public static function scan_frame() { return '' !== sanitize_key( $_GET['lt_scan'] ?? '' ); } // phpcs:ignore WordPress.Security.NonceVerification
 
+	/** Same audience as tracking(), but also before the page renders (form handlers that add a notice). */
+	public static function may_record() {
+		if ( null !== self::$can ) return self::$can;
+		if ( ! did_action( 'init' ) ) return false; // user not known yet
+		self::$can = false; // no recursion if a check below translates a text
+		self::$can = ! wp_doing_cron() && ! is_admin() && is_user_logged_in() && current_user_can( lt_capability() ) && ! self::scan_copy() && ( self::scan_frame() || self::enabled() );
+		return self::$can;
+	}
+
+	/** A text translated before rendering: kept briefly, only to recognise it in a notice. */
+	public static function remember( $field, $source, $shown, $domain, $allowed = true, $legacy = '' ) {
+		if ( self::$paused || '' === trim( (string) $shown ) || ! preg_match( '/\p{L}{2}/u', (string) $shown ) ) return;
+		unset( self::$recent[ $field ] );
+		self::$recent[ $field ] = array( (string) $source, (string) $domain, $allowed ? 1 : 0, (string) $legacy, (string) $shown );
+		if ( count( self::$recent ) > 300 ) self::$recent = array_slice( self::$recent, -300, null, true );
+	}
+
+	private static function plain( $text ) { return mb_strtolower( trim( preg_replace( '/\s+/u', ' ', html_entity_decode( wp_strip_all_tags( (string) $text ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) ) ); }
+
+	/** wc_add_notice(): the texts it is made of (exactly, or around their %s placeholders). */
+	public static function notice( $message ) {
+		if ( ! is_string( $message ) || '' === trim( $message ) || ! self::$recent || ! self::may_record() ) return $message;
+		$haystack = self::plain( $message );
+		foreach ( self::$recent as $field => $text ) {
+			$parts = preg_split( '/%(?:\d+\$)?[sdfu]|\{[a-z_]+\}/i', self::plain( $text[4] ) );
+			usort( $parts, function( $a, $b ) { return strlen( $b ) - strlen( $a ); } );
+			$needle = trim( (string) $parts[0] );
+			if ( mb_strlen( $needle ) < 4 ) continue;
+			if ( $needle === $haystack || preg_match( '/(?<![\p{L}\p{N}])' . preg_quote( $needle, '/' ) . '(?![\p{L}\p{N}])/u', $haystack ) ) self::$notices[ $field ] = array( $text[0], $text[1], 'p', $text[3], 'z' => 'messages' );
+		}
+		return $message;
+	}
+
+	/** Strings passed to scripts with wp_localize_script() (WoodMart's woodmart_settings…), as printed in the page. */
+	private static function script_texts( $html ) {
+		$found = array();
+		if ( ! preg_match_all( '~<script\b[^>]*\bid=["\x27][^"\x27]*-js-extra["\x27][^>]*>(.*?)</script>~is', (string) $html, $blocks ) ) return $found;
+		$walk = function( $value ) use ( &$walk, &$found ) {
+			if ( is_array( $value ) ) { foreach ( $value as $item ) $walk( $item ); return; }
+			if ( ! is_string( $value ) || ! preg_match( '/\p{L}{2}/u', $value ) || mb_strlen( $value ) > 500 ) return;
+			$found[ self::plain( $value ) ] = true;
+		};
+		foreach ( $blocks[1] as $body ) {
+			if ( ! preg_match_all( '~\bvar\s+[A-Za-z_$][\w$]*\s*=\s*(\{.*?\});(?=\s*(?:var\s|/\*|$))~s', $body, $vars ) ) continue;
+			foreach ( $vars[1] as $json ) { $data = json_decode( $json, true ); if ( is_array( $data ) ) $walk( $data ); }
+		}
+		return $found;
+	}
+
 	public static function pause() { self::$paused = true; }
 	public static function resume() { self::$paused = false; }
 
 	/** @param bool $allowed false when the text domain is not enabled for translation (Interface texts › Settings). */
-	public static function record( $field, $source, $domain, $allowed = true ) {
+	public static function record( $field, $source, $domain, $allowed = true, $legacy = '' ) {
 		if ( self::$paused || isset( self::$texts[ $field ] ) || count( self::$texts ) >= self::MAX_TEXTS || '' === trim( (string) $source ) ) return;
-		self::$texts[ $field ] = array( (string) $source, (string) $domain, $allowed ? 1 : 0 );
+		self::$texts[ $field ] = array( (string) $source, (string) $domain, $allowed ? 1 : 0, (string) $legacy );
 	}
 
 	public static function save() {
+		if ( self::$notices ) { $notices = self::$notices; self::$notices = array(); self::add_texts( 'messages', $notices ); }
 		if ( ! self::$on || ! self::$texts ) return;
-		$texts = array();
-		foreach ( self::$texts as $field => $text ) $texts[ $field ] = array( $text[0], $text[1] );
-		if ( wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) { // notices & errors shown without reloading the page
-			$part = LT_Page_Places::action_label( (string) ( $_REQUEST['wc-ajax'] ?? $_REQUEST['action'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput
-			foreach ( $texts as $field => $text ) $texts[ $field ] += array_filter( array( 'z' => 'messages', 'c' => $part ) );
-			self::add_texts( 'messages', $texts );
+		// WordPress runs its shutdown action before PHP flushes output buffers. Read our still-open
+		// buffer now, otherwise the visibility check is skipped and prepared admin strings leak in.
+		if ( self::$buffer_level && ob_get_level() === self::$buffer_level ) {
+			$pending = ob_get_contents();
+			if ( is_string( $pending ) && '' !== $pending ) self::$html = ( self::$html ?? '' ) . $pending;
+		}
+		if ( self::$async ) {
+			$payload = null !== self::$response ? self::$response : ( is_string( self::$html ) ? json_decode( self::$html, true ) : null );
+			if ( null === $payload && is_string( self::$html ) ) $payload = self::$html;
+			if ( null === $payload ) return;
+			$shown = array();
+			$walk = function( $value ) use ( &$walk, &$shown ) {
+				if ( is_array( $value ) || is_object( $value ) ) { foreach ( $value as $item ) $walk( $item ); return; }
+				if ( ! is_string( $value ) || '' === trim( $value ) ) return;
+				$visible = self::visible_text( $value );
+				$shown += $visible['parts'];
+			};
+			$walk( $payload );
+			$texts = array();
+			foreach ( self::$texts as $field => $info ) {
+				$source = mb_strtolower( trim( preg_replace( '/\s+/u', ' ', html_entity_decode( wp_strip_all_tags( $info[0] ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) ) );
+				if ( isset( $shown[ $source ] ) ) $texts[ $field ] = array( $info[0], $info[1], 'p', $info[3] );
+			}
+			if ( $texts ) self::add_texts( 'messages', $texts );
 			return;
 		}
+		if ( null === self::$html ) return; // No rendered page is available: do not publish unverified texts.
+		$texts = array();
+		foreach ( self::$texts as $field => $text ) $texts[ $field ] = array( $text[0], $text[1], 'p', $text[3] );
 		// Only what is really displayed: texts prepared by plugins but never shown are left out.
 		if ( null !== self::$html ) {
 			$haystack = self::visible_text( self::$html );
-			$texts    = array_filter( $texts, function( $text ) use ( $haystack ) { return self::is_shown( $text[0], $haystack ); } );
+			$scripts  = self::script_texts( self::$html ); // exact strings only: a script message is a whole value
+			$texts    = array_filter( $texts, function( $text ) use ( $haystack, $scripts ) { return self::is_shown( $text[0], $haystack ) || isset( $scripts[ self::plain( $text[0] ) ] ); } );
 			// Blocks shown inside the page: only those really visible, and not in the header / footer / side
 			// panels (those are the same on every page and are translated once, in "Blocks & layouts").
 			$samples = array();
@@ -174,21 +300,22 @@ class LT_Page_Texts {
 		// The site check reads several pages at once: each request updates the shared list in turn,
 		// from its latest version, so that no page overwrites what another one just added.
 		$locked = self::lock();
+		if ( ! $locked ) return; // Concurrent collection is optional; never overwrite its result or hold up this page.
 		wp_cache_delete( self::MAP, 'options' );
 		try { self::merge_texts( $type, $texts, $url, $replace, $items ); }
-		finally { if ( $locked ) self::unlock(); }
+		finally { self::unlock(); }
 	}
 
 	/** Short database lock (an INSERT is atomic; a lock older than 15 s is considered abandoned). */
 	private static function lock() {
 		global $wpdb;
-		for ( $i = 0; $i < 50; $i++ ) {
-			if ( $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", 'lt_page_texts_lock', (string) time() ) ) ) return true; // phpcs:ignore WordPress.DB
-			$since = (int) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", 'lt_page_texts_lock' ) ); // phpcs:ignore WordPress.DB
-			if ( $since && $since < time() - 15 ) self::unlock();
-			usleep( 100000 );
+		if ( $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", 'lt_page_texts_lock', (string) time() ) ) ) return true; // phpcs:ignore WordPress.DB
+		$since = (int) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", 'lt_page_texts_lock' ) ); // phpcs:ignore WordPress.DB
+		if ( $since && $since < time() - 15 ) {
+			self::unlock();
+			return (bool) $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", 'lt_page_texts_lock', (string) time() ) ); // phpcs:ignore WordPress.DB
 		}
-		return false; // still written, as before, rather than losing the texts of this page
+		return false; // Another request is recording texts; never delay the visitor's page.
 	}
 
 	private static function unlock() {
@@ -364,8 +491,18 @@ class LT_Page_Texts {
 		$changed = false;
 		$added = false;
 		foreach ( $texts as $field => $info ) {
-			foreach ( $languages as $language ) if ( ! isset( $existing[ $language ][ $field ] ) ) { LT_Translation_Store::collect_empty( $language, $field, $info[0] ); $added = true; }
-			if ( ! isset( $index[ $field ] ) && 0 !== strpos( $field, 'text_' ) ) { $index[ $field ] = array( 'd' => $info[1], 't' => 'l', 's' => 'page', 'a' => 'f' ); $changed = true; }
+			foreach ( $languages as $language ) if ( ! isset( $existing[ $language ][ $field ] ) ) { LT_Translation_Store::collect_empty( $language, $field, $info[0], $info[3] ?? null ); $added = true; }
+			if ( isset( $index[ $field ] ) && LT_Code_Scanner::admin_only( $index[ $field ] ) ) {
+				// A genuine rendered label may share a key with an admin-only source. Keep the
+				// rendered domain and discard the stale admin file provenance.
+				$index[ $field ]['d'] = $info[1];
+				$index[ $field ]['s'] = 'page';
+				$index[ $field ]['a'] = 'f';
+				$index[ $field ]['v'] = 1;
+				unset( $index[ $field ]['p'] );
+				$changed = true;
+			} elseif ( isset( $index[ $field ] ) && empty( $index[ $field ]['v'] ) ) { $index[ $field ]['a'] = 'f'; $index[ $field ]['v'] = 1; $changed = true; }
+			if ( ! isset( $index[ $field ] ) && 0 !== strpos( $field, 'text_' ) ) { $index[ $field ] = array( 'd' => $info[1], 't' => 'l', 's' => 'page', 'a' => 'f', 'v' => 1 ); $changed = true; }
 		}
 		if ( $changed ) update_option( LT_Code_Scanner::INDEX, $index, false );
 		if ( $added || $changed ) LT_Content_Catalog::strings_changed();
@@ -411,6 +548,8 @@ class LT_Page_Texts {
 			$add( 'common', __( 'Texts of every page (header, footer, menus)', 'lightweight-translation' ), self::admin_url( 'lt-strings', array( 'page_type' => 'common' ) ) );
 			$add( 'pages', __( 'All pages of the site…', 'lightweight-translation' ), self::admin_url( 'lt-strings' ) );
 			$add( 'find', __( 'Find a text…', 'lightweight-translation' ), self::admin_url( 'lt-find' ) );
+			$on = self::user_enabled();
+			$add( 'collect', $on ? __( '● Recording page texts: on (makes pages slower, click to stop)', 'lightweight-translation' ) : __( 'Record the texts of the pages I visit (off)', 'lightweight-translation' ), wp_nonce_url( remove_query_arg( 'lt_collect', add_query_arg( 'lt_collect_toggle', $on ? 'off' : 'on' ) ), 'lt_collect_toggle' ) );
 		}
 		// Same page in the other languages.
 		$bar->add_group( array( 'parent' => 'lt-translate', 'id' => 'lt-translate-view', 'meta' => array( 'class' => 'ab-sub-secondary' ) ) );

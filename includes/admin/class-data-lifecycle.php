@@ -12,10 +12,10 @@ class LT_Data_Lifecycle {
 		'lt_language_label_mode', 'lt_language_labels', 'lt_selector_show_flag', 'lt_selector_show_name',
 		'lt_selector_include_default', 'lt_auto_redirect', 'lt_sticky_language', 'lt_seo_tags',
 		'lt_debug_mode', 'lt_collect_strings', 'lt_admin_translation_layout', 'lt_list_column', 'lt_verify_until',
-		'lt_string_index', 'lt_js_strings', 'lt_string_domains', 'lt_admin_text_options', 'lt_page_texts',
-		'lt_site_scan', 'lt_scan_ignored', 'lt_string_seen', 'lt_woocommerce_catalog', 'lt_wc_blocks_seen',
+		'lt_email_catalog_ids', 'lt_string_index', 'lt_js_strings', 'lt_string_domains', 'lt_admin_text_options', 'lt_page_texts',
+		'lt_site_scan', 'lt_scan_ignored', 'lt_string_seen', 'lt_woocommerce_catalog', 'lt_woodmart_catalog', 'lt_wc_blocks_seen',
 		'lt_wc_blocks_texts', 'lt_wc_blocks_pages', 'lt_wc_blocks_scanned',
-		'lt_ai_context', 'lt_version', 'lt_catalog_revision', 'lt_catalog_revisions', 'lt_status_summary_keys', 'lt_overview_progress_keys', 'lt_flush_rewrite_rules',
+		'lt_ai_context', 'lt_version', 'lt_flush_rewrite_rules',
 	);
 
 	private static $instance;
@@ -195,7 +195,7 @@ class LT_Data_Lifecycle {
 			if ( 'lt_language' === $key ) update_user_meta( absint( $preference['user_id'] ), 'lt_language', sanitize_key( $preference['meta_value'] ?? '' ) );
 			elseif ( 'lt_strings_per_page' === $key ) update_user_option( absint( $preference['user_id'] ), 'lt_strings_per_page', absint( $preference['meta_value'] ?? 0 ) );
 		}
-		foreach ( $router->languages() as $language ) { delete_transient( 'lt_strings_' . $language ); delete_transient( 'lt_wcjs_' . $language ); delete_transient( 'lt_content_hashes_' . $language ); }
+		LT_Translation_Store::reset_strings();
 		if ( class_exists( 'LT_Content_Catalog' ) ) LT_Content_Catalog::flush_summary();
 		if ( $wpdb_error ) wp_die( esc_html__( 'Some translations could not be restored. The available settings and menu selectors were restored; please retry from this backup.', 'lightweight-translation' ) );
 		wp_safe_redirect( add_query_arg( array( 'page' => 'lt-preferences', 'lt_full_restored' => $wpdb_rows ), admin_url( 'admin.php' ) ) . '#tools' );
@@ -209,10 +209,15 @@ class LT_Data_Lifecycle {
 		) ) );
 	}
 
-	private static function clear_transients() {
+	/** Remove performance transients created by earlier releases. Never creates new ones. */
+	public static function purge_legacy_caches() {
 		global $wpdb;
 		$table = $wpdb->options;
-		$names = array( 'lt_strings_%', 'lt_wcjs_%', 'lt_content_hashes_%', 'lt_admin_text_origins', 'lt_settings_texts_read', 'lt_list_%', 'lt_status_summary_%', 'lt_overview_progress_%', 'lt_scan_known_%', self::RESET_TOKEN . '%' );
+		$names = array( 'lt_strings_%', 'lt_wcjs_%', 'lt_content_hashes_%', 'lt_admin_text_origins', 'lt_settings_texts_read', 'lt_list_%', 'lt_status_summary_%', 'lt_overview_progress_%', 'lt_scan_known_%' );
+		foreach ( LT_Language_Router::instance()->languages() as $language ) foreach ( array( 'lt_strings_', 'lt_wcjs_', 'lt_content_hashes_', 'lt_scan_known_' ) as $prefix ) delete_transient( $prefix . $language );
+		foreach ( array_merge( (array) get_option( 'lt_status_summary_keys', array() ), (array) get_option( 'lt_overview_progress_keys', array() ) ) as $key ) if ( is_string( $key ) ) delete_transient( $key );
+		delete_transient( 'lt_admin_text_origins' );
+		delete_transient( 'lt_settings_texts_read' );
 		$patterns = array();
 		foreach ( $names as $name ) foreach ( array( '_transient_', '_transient_timeout_', '_site_transient_', '_site_transient_timeout_' ) as $prefix ) $patterns[] = $prefix . $name;
 		foreach ( $patterns as $pattern ) {
@@ -220,6 +225,7 @@ class LT_Data_Lifecycle {
 			$like = false !== strpos( $pattern, '%' ) ? $escaped . '%' : $escaped;
 			$wpdb->query( $wpdb->prepare( "DELETE FROM $table WHERE option_name LIKE %s", $like ) ); // phpcs:ignore WordPress.DB
 		}
+		foreach ( array( 'lt_catalog_revision', 'lt_catalog_revisions', 'lt_status_summary_keys', 'lt_overview_progress_keys' ) as $name ) delete_option( $name );
 	}
 
 	/** Clears only data owned by this plugin. Content, products, terms and menus remain. */
@@ -231,14 +237,16 @@ class LT_Data_Lifecycle {
 		foreach ( self::OPTIONS as $name ) delete_option( $name );
 		delete_metadata( 'user', 0, 'lt_language', '', true );
 		delete_metadata( 'user', 0, $wpdb->get_blog_prefix() . 'lt_strings_per_page', '', true );
+		delete_metadata( 'user', 0, 'lt_collect_texts', '', true );
+		LT_Translation_Reset::purge_all(); // translated pages must not stay in the page cache (also cancels a waiting purge)
 		foreach ( self::switcher_ids() as $id ) wp_delete_post( $id, true );
 		delete_metadata( 'post', 0, '_lt_switcher', '', true );
 		delete_metadata( 'post', 0, '_lt_switcher_style', '', true );
-		self::clear_transients();
+		self::purge_legacy_caches();
 		delete_transient( self::RESET_TOKEN . get_current_user_id() );
 		if ( isset( $GLOBALS['wp_rewrite'] ) && is_object( $GLOBALS['wp_rewrite'] ) ) $GLOBALS['wp_rewrite']->rules = null;
 		flush_rewrite_rules( false );
-		if ( function_exists( 'wp_cache_flush_group' ) ) wp_cache_flush_group( 'lt_content' );
+		if ( function_exists( 'wp_cache_flush_group' ) ) wp_cache_flush_group( 'lt_content' ); // Old versions used this group.
 	}
 
 	/** Full backup: download, restore, raw table. Settings › Maintenance, below the danger zone. */
