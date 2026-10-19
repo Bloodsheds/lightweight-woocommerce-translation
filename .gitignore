@@ -1,0 +1,12 @@
+# Exclude README
+/README.md export-ignore
+
+# Exclude /docs
+/docs/ export-ignore
+
+# Exclude .gitignore
+/.gitignore export-ignore
+/.gitattributes export-ignore
+
+# Exclude config
+/.github/ export-ignore
